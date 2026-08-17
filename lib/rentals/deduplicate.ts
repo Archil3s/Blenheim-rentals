@@ -24,13 +24,24 @@ function keyFor(rental: Rental) {
   return `source:${rental.source}:${rental.sourceListingId ?? rental.url}`;
 }
 
+function usefulContact(value?: string) {
+  return Boolean(value && !value.toLowerCase().startsWith("see original"));
+}
+
 function richness(rental: Rental) {
+  const namedManager =
+    rental.propertyManager &&
+    rental.propertyManager.toLowerCase() !== rental.source.toLowerCase();
+
   return (
     (rental.imageUrl ? 4 : 0) +
     (rental.bathrooms != null ? 1 : 0) +
     (rental.bedrooms != null ? 1 : 0) +
     (rental.suburb ? 1 : 0) +
-    (rental.area ? 1 : 0)
+    (rental.area ? 1 : 0) +
+    (namedManager ? 3 : 0) +
+    (usefulContact(rental.contactPhone) ? 1 : 0) +
+    (usefulContact(rental.contactEmail) ? 1 : 0)
   );
 }
 
