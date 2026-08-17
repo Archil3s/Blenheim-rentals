@@ -1,14 +1,17 @@
 import type { Rental, RentalSourceAdapter } from "../types";
 
-const SEARCH_PAGES = [
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_1",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_2",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_1",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_2",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_1",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_2",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_1",
-  "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_2",
+type SearchRegion = "Marlborough" | "Nelson" | "Kaikōura" | "Christchurch";
+type SearchPage = { url: string; region: SearchRegion };
+
+const SEARCH_PAGES: SearchPage[] = [
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_1", region: "Marlborough" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_2", region: "Marlborough" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_1", region: "Nelson" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_2", region: "Nelson" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_1", region: "Kaikōura" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_2", region: "Kaikōura" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_1", region: "Christchurch" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_2", region: "Christchurch" },
 ];
 
 const HTML_ENTITY_MAP: Record<string, string> = {
@@ -52,25 +55,12 @@ function suburbFromAddress(address: string): string | undefined {
   return parts.length > 1 ? parts.at(-1) : undefined;
 }
 
-type SearchRegion = "Marlborough" | "Nelson" | "Kaikōura" | "Christchurch";
-
 function regionFromUrl(url: string): SearchRegion | null {
   const pathname = new URL(url).pathname.toLowerCase();
-
-  if (
-    pathname.includes("/property/marlborough/kaikoura/") ||
-    pathname.includes("/property/marlborough/kaik-ura/") ||
-    pathname.includes("/property/marlborough/kaikoura-surrounds/") ||
-    pathname.includes("/property/marlborough/kaik-ura-surrounds/")
-  ) {
-    return "Kaikōura";
-  }
-
+  if (pathname.includes("/property/marlborough/kaikoura/") || pathname.includes("/property/marlborough/kaikoura-surrounds/")) return "Kaikōura";
   if (pathname.includes("/property/canterbury/")) return "Christchurch";
   if (pathname.includes("/property/marlborough/")) return "Marlborough";
-  if (pathname.includes("/property/nelson-bays/") || pathname.includes("/property/nelson/")) {
-    return "Nelson";
-  }
+  if (pathname.includes("/property/nelson-bays/") || pathname.includes("/property/nelson/")) return "Nelson";
   return null;
 }
 
@@ -80,8 +70,8 @@ function listingIdFromUrl(url: string): string {
   return parts.at(-1) ?? pathname;
 }
 
-function parseListingText(text: string, url: string): Rental | null {
-  const region = regionFromUrl(url);
+function parseListingText(text: string, url: string, forcedRegion?: SearchRegion): Rental | null {
+  const region = forcedRegion ?? regionFromUrl(url);
   if (!region) return null;
 
   const rentMatch = text.match(/\$\s?([\d,]+)\s*per\s*week/i);
@@ -95,7 +85,6 @@ function parseListingText(text: string, url: string): Rental | null {
 
   const tokens = afterRent.split(/\s+/);
   const trailingNumbers: number[] = [];
-
   while (tokens.length > 0 && trailingNumbers.length < 3) {
     const last = tokens.at(-1) ?? "";
     if (!/^\d+$/.test(last)) break;
@@ -107,7 +96,6 @@ function parseListingText(text: string, url: string): Rental | null {
 
   const sourceListingId = listingIdFromUrl(url);
   const suburb = suburbFromAddress(address);
-
   return {
     id: `oneroof:${sourceListingId}`,
     address,
@@ -124,7 +112,7 @@ function parseListingText(text: string, url: string): Rental | null {
   };
 }
 
-export function parseOneRoofHtml(html: string): Rental[] {
+export function parseOneRoofHtml(html: string, forcedRegion?: SearchRegion): Rental[] {
   const listings: Rental[] = [];
   const seen = new Set<string>();
   const anchorPattern = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
@@ -132,19 +120,11 @@ export function parseOneRoofHtml(html: string): Rental[] {
   for (const match of html.matchAll(anchorPattern)) {
     const href = decodeHtml(match[2]);
     const url = absoluteUrl(href);
-    if (
-      !url ||
-      !/\/property\/(?:marlborough|nelson-bays|nelson|canterbury)\//i.test(
-        new URL(url).pathname,
-      )
-    ) {
-      continue;
-    }
+    if (!url || !/\/property\/(?:marlborough|nelson-bays|nelson|canterbury)\//i.test(new URL(url).pathname)) continue;
 
     const text = textFromHtml(match[3]);
-    const rental = parseListingText(text, url);
+    const rental = parseListingText(text, url, forcedRegion);
     if (!rental || seen.has(rental.id)) continue;
-
     seen.add(rental.id);
     listings.push(rental);
   }
@@ -152,24 +132,18 @@ export function parseOneRoofHtml(html: string): Rental[] {
   return listings;
 }
 
-async function fetchOneRoofPage(url: string): Promise<Rental[]> {
-  const response = await fetch(url, {
+async function fetchOneRoofPage(page: SearchPage): Promise<Rental[]> {
+  const response = await fetch(page.url, {
     cache: "no-store",
     headers: {
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "en-NZ,en;q=0.9",
-      "User-Agent":
-        "Mozilla/5.0 (compatible; BlenheimRentals/1.0; +https://github.com/Archil3s/Blenheim-rentals)",
+      "User-Agent": "Mozilla/5.0 (compatible; BlenheimRentals/1.0; +https://github.com/Archil3s/Blenheim-rentals)",
     },
     signal: AbortSignal.timeout(15_000),
   });
-
-  if (!response.ok) {
-    throw new Error(`OneRoof returned HTTP ${response.status}`);
-  }
-
-  const html = await response.text();
-  return parseOneRoofHtml(html);
+  if (!response.ok) throw new Error(`OneRoof returned HTTP ${response.status} for ${page.region}`);
+  return parseOneRoofHtml(await response.text(), page.region);
 }
 
 export const oneRoofSource: RentalSourceAdapter = {
@@ -177,19 +151,13 @@ export const oneRoofSource: RentalSourceAdapter = {
   enabled: process.env.ONEROOF_ENABLED !== "false",
   async fetchRentals() {
     const settled = await Promise.allSettled(SEARCH_PAGES.map(fetchOneRoofPage));
-    const rentals = settled.flatMap((result) =>
-      result.status === "fulfilled" ? result.value : [],
-    );
+    const rentals = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
 
     if (rentals.length === 0) {
       const failures = settled
         .filter((result) => result.status === "rejected")
         .map((result) => String((result as PromiseRejectedResult).reason));
-      throw new Error(
-        failures.length > 0
-          ? failures.join("; ")
-          : "OneRoof returned no Marlborough, Nelson, Kaikōura or Christchurch listings",
-      );
+      throw new Error(failures.length > 0 ? failures.join("; ") : "OneRoof returned no configured regional listings");
     }
 
     const byId = new Map<string, Rental>();
