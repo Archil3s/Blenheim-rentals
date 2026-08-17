@@ -1,21 +1,33 @@
+import { bnPropertiesSource } from "./bn-properties";
 import { demoSource } from "./demo";
 import { oneRoofSource } from "./oneroof";
 import {
-  localAgenciesSource,
+  bayleysSource,
+  harcourtsSource,
+  homesSource,
   myRentSource,
+  propertyBrokersSource,
+  quinovicSource,
   realestateSource,
   summitSource,
   tradeMeSource,
 } from "./placeholders";
+import { rayWhiteCompleteSource } from "./raywhite-complete";
 import { rayWhiteSource } from "./raywhite";
 
 export const rentalSources = [
-  oneRoofSource,
   rayWhiteSource,
-  tradeMeSource,
+  rayWhiteCompleteSource,
+  bnPropertiesSource,
+  oneRoofSource,
   realestateSource,
-  myRentSource,
+  bayleysSource,
+  harcourtsSource,
+  propertyBrokersSource,
+  quinovicSource,
   summitSource,
-  localAgenciesSource,
+  myRentSource,
+  homesSource,
+  tradeMeSource,
   demoSource,
 ];
