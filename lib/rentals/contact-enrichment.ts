@@ -66,10 +66,10 @@ function firstTel(html: string) {
 }
 
 function firstNzPhone(text: string) {
-  const mobile = text.match(/\b(?:\+64\s?2\d|02\d)(?:[\s-]?\d){6,8}\b/);
+  const mobile = text.match(/(?:\+64\s?2\d|\b02\d)(?:[\s-]?\d){6,8}\b/);
   if (mobile) return mobile[0].replace(/\s+/g, " ");
 
-  const landline = text.match(/\b(?:\+64\s?[3-9]|0[3-9])(?:[\s-]?\d){7,8}\b/);
+  const landline = text.match(/(?:\+64\s?[3-9]|\b0[3-9])(?:[\s-]?\d){7,8}\b/);
   return landline?.[0]?.replace(/\s+/g, " ");
 }
 
@@ -104,7 +104,9 @@ function contactNameNearLink(html: string, email?: string, phone?: string) {
   if (!needle) return undefined;
   const index = html.toLowerCase().indexOf(needle.toLowerCase());
   if (index < 0) return undefined;
-  const context = textFromHtml(html.slice(Math.max(0, index - 600), Math.min(html.length, index + 350)));
+  const context = textFromHtml(
+    html.slice(Math.max(0, index - 600), Math.min(html.length, index + 350)),
+  );
   return contactNameFromText(context);
 }
 
@@ -117,7 +119,7 @@ async function fetchListingHtml(url: string) {
       "User-Agent":
         "Mozilla/5.0 (compatible; BlenheimRentals/1.0; +https://github.com/Archil3s/Blenheim-rentals)",
     },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(5_000),
   });
 
   if (!response.ok) throw new Error(`Listing returned HTTP ${response.status}`);
@@ -158,7 +160,7 @@ async function enrichOne(rental: Rental): Promise<Rental> {
 
 export async function enrichRentalContacts(rentals: Rental[]) {
   const enriched: Rental[] = [];
-  const batchSize = 8;
+  const batchSize = 20;
 
   for (let index = 0; index < rentals.length; index += batchSize) {
     const batch = rentals.slice(index, index + batchSize);
