@@ -1,23 +1,61 @@
-import JSZip from "jszip";
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  HeightRule,
+  Packer,
+  PageBreak,
+  PageOrientation,
+  Paragraph,
+  ShadingType,
+  TabStopType,
+  Table,
+  TableCell,
+  TableLayoutType,
+  TableRow,
+  TextRun,
+  VerticalAlign,
+  WidthType,
+} from "docx";
 import type { Rental } from "./types";
 
-const TEMPLATE_PATH = "public/templates/Blenheim rental housing diary.docx";
-const DATA_ROW_INDEXES = [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16];
+const PAGE_WIDTH = 11906;
+const PAGE_HEIGHT = 16838;
+const PAGE_MARGIN = 720;
+const COLUMN_WIDTHS = [1129, 1560, 1984, 2299, 1744, 1744, 3002, 1701];
+const TABLE_WIDTH = COLUMN_WIDTHS.reduce((sum, width) => sum + width, 0);
+const HEADER_FILL = "8E0000";
+const HEADING_RED = "C00000";
+const BORDER = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+const BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
 
-function xmlEscape(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+const LONG_HEADERS = [
+  "Date",
+  "Contact type – How did you find the property, face to face, online",
+  "Property type/price E.G hostel, Private rental",
+  "Property address",
+  "Contact Person – Who did you speak to?",
+  "Phone or email – What is their contact details",
+  "Notes.",
+  "Result or follow up action – add star for rating",
+];
+
+const SHORT_HEADERS = [
+  "Date",
+  "Contact type",
+  "Property type/price",
+  "Property address",
+  "Contact Person",
+  "Phone or email",
+  "Notes",
+  "Result or follow up action",
+];
 
 function compact(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() || "";
 }
 
-function checked(value?: string) {
+function checkedDate(value?: string) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -26,8 +64,6 @@ function checked(value?: string) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
   }).format(date);
 }
 
@@ -42,116 +78,202 @@ function contactDetails(rental: Rental) {
   return values.length ? values.join("\n") : "See original listing";
 }
 
-function notes(rental: Rental) {
-  const facts = [
+function listingNotes(rental: Rental) {
+  const values = [
     rental.bedrooms != null ? `${rental.bedrooms} bed` : "",
     rental.bathrooms != null ? `${rental.bathrooms} bath` : "",
     compact(rental.notes),
     `Source: ${rental.source}`,
   ].filter(Boolean);
-  return facts.join("; ");
+  return values.join("; ");
 }
 
-function result(rental: Rental) {
+function resultAndFollowUp(rental: Rental) {
   const outcome = compact(rental.outcome) || "Available at last check";
   const followUp = compact(rental.followUpAction) || "Open listing and contact property manager";
-  return `${outcome}\nFollow up: ${followUp}`;
+  const rating = rental.rating ? ` ${"★".repeat(Math.min(5, rental.rating))}` : "";
+  return `${outcome}${rating}\nFollow up: ${followUp}`;
 }
 
-function rowValues(rental: Rental) {
+function rentalValues(rental?: Rental) {
+  if (!rental) return Array(8).fill("");
   return [
-    checked(rental.checkedAt),
+    checkedDate(rental.checkedAt),
     compact(rental.contactType) || "Online",
     `${compact(rental.propertyType) || "Private rental"}\n${money(rental.rent)}`,
     rental.address,
     compact(rental.contactName) || compact(rental.propertyManager) || rental.source,
     contactDetails(rental),
-    notes(rental),
-    result(rental),
+    listingNotes(rental),
+    resultAndFollowUp(rental),
   ];
 }
 
-function paragraphXml(text: string) {
-  const pieces = text.split(/\r?\n/);
-  const body = pieces
-    .map((piece, index) => {
-      const run = `<w:r><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${xmlEscape(piece)}</w:t></w:r>`;
-      return index === pieces.length - 1 ? run : `${run}<w:r><w:br/></w:r>`;
-    })
-    .join("");
-  return `<w:p>${body}</w:p>`;
-}
-
-function replaceCellText(rowXml: string, cellIndex: number, text: string) {
-  const matches = [...rowXml.matchAll(/<w:tc\b[\s\S]*?<\/w:tc>/g)];
-  const match = matches[cellIndex];
-  if (!match || match.index == null) return rowXml;
-
-  const original = match[0];
-  const replacement = original.replace(
-    /(<w:tcPr>[\s\S]*?<\/w:tcPr>)[\s\S]*?(<\/w:tc>)/,
-    `$1${paragraphXml(text)}$2`,
+function cellParagraphs(value: string, options?: { bold?: boolean; color?: string; size?: number }) {
+  const lines = value.split(/\r?\n/);
+  return (lines.length ? lines : [""]).map(
+    (line) =>
+      new Paragraph({
+        spacing: { after: 0, before: 0 },
+        children: [
+          new TextRun({
+            text: line,
+            bold: options?.bold,
+            color: options?.color,
+            size: options?.size ?? 16,
+            font: "Arial",
+          }),
+        ],
+      }),
   );
-
-  return `${rowXml.slice(0, match.index)}${replacement}${rowXml.slice(match.index + original.length)}`;
 }
 
-function fillTable(documentXml: string, rentals: Rental[]) {
-  const tableMatch = documentXml.match(/<w:tbl\b[\s\S]*?<\/w:tbl>/);
-  if (!tableMatch || tableMatch.index == null) {
-    throw new Error("Housing diary table was not found in the template");
-  }
+function tableCell(value: string, index: number, header = false) {
+  return new TableCell({
+    width: { size: COLUMN_WIDTHS[index], type: WidthType.DXA },
+    borders: BORDERS,
+    margins: { top: 70, bottom: 70, left: 80, right: 80 },
+    verticalAlign: VerticalAlign.TOP,
+    ...(header
+      ? { shading: { fill: HEADER_FILL, type: ShadingType.CLEAR } }
+      : {}),
+    children: cellParagraphs(value, {
+      bold: header,
+      color: header ? "FFFFFF" : "000000",
+      size: header ? 18 : 16,
+    }),
+  });
+}
 
-  const table = tableMatch[0];
-  const rows = [...table.matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)];
-  let filledTable = table;
-  let offset = 0;
+function headerRow(headers: string[]) {
+  return new TableRow({
+    tableHeader: true,
+    children: headers.map((value, index) => tableCell(value, index, true)),
+  });
+}
 
-  DATA_ROW_INDEXES.forEach((rowIndex, exportIndex) => {
-    const row = rows[rowIndex];
-    if (!row || row.index == null) return;
+function dataRow(rental?: Rental) {
+  const values = rentalValues(rental);
+  return new TableRow({
+    height: { value: 850, rule: HeightRule.ATLEAST },
+    children: values.map((value, index) => tableCell(value, index, false)),
+  });
+}
 
-    let rowXml = row[0];
-    const values = rentals[exportIndex] ? rowValues(rentals[exportIndex]) : Array(8).fill("");
-    values.forEach((value, cellIndex) => {
-      rowXml = replaceCellText(rowXml, cellIndex, value);
-    });
+function diaryTable(rentals: Array<Rental | undefined>, headers: string[]) {
+  return new Table({
+    width: { size: TABLE_WIDTH, type: WidthType.DXA },
+    columnWidths: COLUMN_WIDTHS,
+    layout: TableLayoutType.FIXED,
+    alignment: AlignmentType.CENTER,
+    rows: [headerRow(headers), ...rentals.map(dataRow)],
+  });
+}
 
-    const start = row.index + offset;
-    filledTable = `${filledTable.slice(0, start)}${rowXml}${filledTable.slice(start + row[0].length)}`;
-    offset += rowXml.length - row[0].length;
+function pageHeading(clientName: string) {
+  return [
+    new Paragraph({
+      tabStops: [{ type: TabStopType.RIGHT, position: TABLE_WIDTH }],
+      spacing: { after: 40 },
+      children: [
+        new TextRun({
+          text: "CMM Emergency Housing Navigator – Housing Search Diary",
+          color: HEADING_RED,
+          font: "Arial",
+          size: 30,
+        }),
+        new TextRun({
+          text: `\tKaewa/Client Name: ${clientName}`,
+          color: HEADING_RED,
+          font: "Arial",
+          size: 30,
+        }),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: 55 },
+      children: [
+        new TextRun({ text: "____________________________", color: HEADING_RED, size: 18 }),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: 95 },
+      children: [
+        new TextRun({
+          text: "Whilst you are in Emergency/Transitional Housing you are required to fill this diary in weekly and present to your EH/TH Support Worker every Friday before 12noon by text msg ",
+          font: "Arial",
+          size: 20,
+        }),
+        new TextRun({ text: "027 330 5252", color: "4472C4", font: "Arial", size: 20 }),
+        new TextRun({ text: " or call ", font: "Arial", size: 20 }),
+        new TextRun({ text: "0800432 536", color: "4472C4", font: "Arial", size: 20 }),
+        new TextRun({ text: "or via email: ", font: "Arial", size: 20 }),
+        new TextRun({
+          text: "[Daniel.dutoit@mmsi.org,nz]",
+          color: "4472C4",
+          font: "Arial",
+          size: 20,
+        }),
+        new TextRun({
+          text: ". Failing to do so is failing to meet EH/TH obligations to CMM and WINZ.",
+          font: "Arial",
+          size: 20,
+        }),
+      ],
+    }),
+  ];
+}
+
+function blankRentalSlots(rentals: Rental[], start: number, count: number) {
+  return Array.from({ length: count }, (_, index) => rentals[start + index]);
+}
+
+export async function generateHousingDiary(clientName: string, rentals: Rental[]) {
+  const selected = rentals.slice(0, 15);
+  const children = [
+    ...pageHeading(clientName),
+    diaryTable(blankRentalSlots(selected, 0, 7), LONG_HEADERS),
+    new Paragraph({ children: [new PageBreak()] }),
+    ...pageHeading(clientName),
+    diaryTable(blankRentalSlots(selected, 7, 7), SHORT_HEADERS),
+    new Paragraph({ children: [new PageBreak()] }),
+    ...pageHeading(clientName),
+    diaryTable(blankRentalSlots(selected, 14, 1), SHORT_HEADERS),
+  ];
+
+  const document = new Document({
+    styles: {
+      default: {
+        document: {
+          run: { font: "Arial", size: 20 },
+          paragraph: { spacing: { after: 0, before: 0 } },
+        },
+      },
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            size: {
+              width: PAGE_WIDTH,
+              height: PAGE_HEIGHT,
+              orientation: PageOrientation.LANDSCAPE,
+            },
+            margin: {
+              top: PAGE_MARGIN,
+              right: PAGE_MARGIN,
+              bottom: PAGE_MARGIN,
+              left: PAGE_MARGIN,
+              header: 708,
+              footer: 708,
+            },
+          },
+        },
+        children,
+      },
+    ],
   });
 
-  return `${documentXml.slice(0, tableMatch.index)}${filledTable}${documentXml.slice(
-    tableMatch.index + table.length,
-  )}`;
+  const buffer = await Packer.toBuffer(document);
+  return new Uint8Array(buffer);
 }
-
-function fillClientName(headerXml: string, clientName: string) {
-  const safe = xmlEscape(clientName.trim());
-  return headerXml.replace(
-    /<w:t>Name:\s*_*<\/w:t>/,
-    `<w:t xml:space="preserve">Name: ${safe}</w:t>`,
-  );
-}
-
-export async function generateHousingDiary(
-  templateBytes: Uint8Array,
-  clientName: string,
-  rentals: Rental[],
-) {
-  const zip = await JSZip.loadAsync(templateBytes);
-  const documentFile = zip.file("word/document.xml");
-  const headerFile = zip.file("word/header2.xml");
-  if (!documentFile || !headerFile) throw new Error("Housing diary template is incomplete");
-
-  const documentXml = await documentFile.async("string");
-  const headerXml = await headerFile.async("string");
-
-  zip.file("word/document.xml", fillTable(documentXml, rentals.slice(0, 15)));
-  zip.file("word/header2.xml", fillClientName(headerXml, clientName));
-
-  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-}
-
-export { TEMPLATE_PATH };
