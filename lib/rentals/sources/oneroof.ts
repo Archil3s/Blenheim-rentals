@@ -51,7 +51,9 @@ function suburbFromAddress(address: string): string | undefined {
 function regionFromUrl(url: string): "Marlborough" | "Nelson" | null {
   const pathname = new URL(url).pathname.toLowerCase();
   if (pathname.includes("/property/marlborough/")) return "Marlborough";
-  if (pathname.includes("/property/nelson/")) return "Nelson";
+  if (pathname.includes("/property/nelson-bays/") || pathname.includes("/property/nelson/")) {
+    return "Nelson";
+  }
   return null;
 }
 
@@ -113,7 +115,7 @@ export function parseOneRoofHtml(html: string): Rental[] {
   for (const match of html.matchAll(anchorPattern)) {
     const href = decodeHtml(match[2]);
     const url = absoluteUrl(href);
-    if (!url || !/\/property\/(?:marlborough|nelson)\//i.test(new URL(url).pathname)) {
+    if (!url || !/\/property\/(?:marlborough|nelson-bays|nelson)\//i.test(new URL(url).pathname)) {
       continue;
     }
 
