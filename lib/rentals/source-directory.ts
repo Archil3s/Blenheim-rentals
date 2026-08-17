@@ -7,6 +7,12 @@ export type RentalSourceDirectoryEntry = {
 
 export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
   {
+    name: "OneRoof",
+    url: "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_1",
+    access: "live",
+    note: "Original phone-friendly OneRoof HTTP feed restored",
+  },
+  {
     name: "Ray White Blenheim",
     url: "https://rwblenheim.co.nz/properties/residential-for-rent?category=&suburbPostCode=",
     access: "live",
@@ -59,12 +65,6 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     url: "https://www.summit.co.nz/rent/listings/?_location=Blenheim+%28area%29&action_search=Search&location=area-1",
     access: "permission",
     note: "Permission/approved access needed for automated collection",
-  },
-  {
-    name: "OneRoof",
-    url: "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_1",
-    access: "permission",
-    note: "Technical adapter exists but automatic collection is disabled under current platform terms",
   },
   {
     name: "myRent",
