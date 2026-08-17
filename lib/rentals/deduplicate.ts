@@ -33,9 +33,10 @@ function keyFor(rental: Rental) {
     canonicalLocality(rental.suburb) ||
     canonicalLocality(rental.area) ||
     canonicalLocality(rental.region);
+  const region = canonicalLocality(rental.region) || "unknown-region";
 
   if (street) {
-    return `address:${street}:${locality}`;
+    return `address:${region}:${street}:${locality}`;
   }
 
   return `source:${rental.source}:${rental.sourceListingId ?? rental.url}`;
