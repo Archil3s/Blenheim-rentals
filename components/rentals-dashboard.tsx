@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { priceBandCounts, selectDiaryRentalsByPriceBand } from "@/lib/rentals/price-bands";
 import { rentalSourceDirectory } from "@/lib/rentals/source-directory";
 import type { Rental, RentalsResponse } from "@/lib/rentals/types";
 
@@ -45,11 +46,7 @@ function RentalCard({ rental }: { rental: Rental }) {
     <article className="rental-card">
       <div
         className="rental-image"
-        style={
-          rental.imageUrl
-            ? { backgroundImage: `url(${rental.imageUrl})` }
-            : undefined
-        }
+        style={rental.imageUrl ? { backgroundImage: `url(${rental.imageUrl})` } : undefined}
         aria-label={rental.imageUrl ? `Photo of ${rental.address}` : undefined}
       >
         {!rental.imageUrl && <span>🏠</span>}
@@ -107,7 +104,6 @@ export function RentalsDashboard() {
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [minBeds, setMinBeds] = useState("0");
-  const [clientName, setClientName] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -151,10 +147,16 @@ export function RentalsDashboard() {
       .sort((a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER));
   }, [data, search, maxRent, minBeds]);
 
-  const diaryRentals = rentals.slice(0, 15);
+  const diaryRentals = useMemo(
+    () => selectDiaryRentalsByPriceBand(data?.rentals ?? [], 15),
+    [data],
+  );
+
+  const diaryBands = useMemo(() => priceBandCounts(data?.rentals ?? []), [data]);
+  const representedBands = diaryBands.filter((band) => band.count > 0).length;
 
   const exportDiary = useCallback(async () => {
-    if (!clientName.trim() || diaryRentals.length === 0) return;
+    if (diaryRentals.length === 0) return;
 
     setExporting(true);
     setExportError(null);
@@ -162,11 +164,6 @@ export function RentalsDashboard() {
     try {
       const response = await fetch("/api/housing-diary", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientName: clientName.trim(),
-          rentalIds: diaryRentals.map((rental) => rental.id),
-        }),
       });
 
       if (!response.ok) {
@@ -178,7 +175,7 @@ export function RentalsDashboard() {
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = `${clientName.trim()} - Housing Search Diary.docx`;
+      link.download = "Housing Search Diary.docx";
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -190,7 +187,7 @@ export function RentalsDashboard() {
     } finally {
       setExporting(false);
     }
-  }, [clientName, diaryRentals]);
+  }, [diaryRentals]);
 
   const configuredSources = data?.sources.filter((source) => source.configured) ?? [];
   const demoMode = configuredSources.some((source) => source.source === "Demo listings");
@@ -272,33 +269,35 @@ export function RentalsDashboard() {
         <section className="export-panel" aria-label="Housing diary export">
           <div>
             <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
-            <h2>Auto-fill the Word diary</h2>
+            <h2>Auto-fill by weekly rent band</h2>
             <p>
-              Uses the current filters and fills up to 15 rows with the checked date, online source,
-              property type and price, address, property manager/contact details, notes and follow-up.
+              Uses the live rental feed and spreads diary entries across your price points instead of requiring a client name.
+              The client-name line stays blank for you to complete later if needed.
             </p>
+            <div className="price-band-grid" aria-label="Rental price bands">
+              {diaryBands.map((band) => (
+                <div key={band.id} className={`price-band ${band.count ? "has-results" : "empty"}`}>
+                  <strong>{band.label}</strong>
+                  <span>{band.count} found</span>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="export-controls">
-            <label>
-              <span>Kaewa / client name</span>
-              <input
-                value={clientName}
-                onChange={(event) => setClientName(event.target.value)}
-                placeholder="Enter client name"
-                autoComplete="off"
-              />
-            </label>
+            <div className="export-field-list">
+              <strong>Fields filled automatically</strong>
+              <span>Date checked · Online · Private rental + price · Address · Contact person/manager · Phone/email · Notes · Result/follow-up</span>
+            </div>
             <button
               type="button"
               className="export-button"
               onClick={() => void exportDiary()}
-              disabled={exporting || !clientName.trim() || diaryRentals.length === 0}
+              disabled={exporting || diaryRentals.length === 0}
             >
               {exporting ? "Creating Word diary…" : "Download populated diary"}
             </button>
             <span className="export-count">
-              {diaryRentals.length} of 15 diary rows will be filled
-              {rentals.length > 15 ? " · first 15 matching rentals" : ""}
+              {diaryRentals.length} of 15 diary rows will be filled · {representedBands} of 9 price bands currently represented
             </span>
             {exportError && <span className="export-error">{exportError}</span>}
           </div>
