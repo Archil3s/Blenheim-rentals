@@ -1,4 +1,5 @@
 import { demoSource } from "./demo";
+import { oneRoofSource } from "./oneroof";
 import {
   localAgenciesSource,
   myRentSource,
@@ -8,6 +9,7 @@ import {
 } from "./placeholders";
 
 export const rentalSources = [
+  oneRoofSource,
   tradeMeSource,
   realestateSource,
   myRentSource,
