@@ -15,21 +15,6 @@ const money = new Intl.NumberFormat("en-NZ", {
   maximumFractionDigits: 0,
 });
 
-const PINNED_REGIONS = [
-  "Blenheim Central",
-  "Springlands",
-  "Redwoodtown",
-  "Witherlea",
-  "Mayfield",
-  "Riversdale",
-  "Burleigh",
-  "Riverlands",
-  "Grovetown",
-  "Renwick",
-  "Rarangi",
-  "Picton",
-];
-
 function formatCheckedAt(value?: string) {
   if (!value) return "Not checked yet";
 
@@ -46,25 +31,6 @@ function accessLabel(access: "live" | "api" | "permission" | "manual") {
   if (access === "api") return "API";
   if (access === "permission") return "PERMISSION";
   return "OPEN SITE";
-}
-
-function normaliseRegion(value?: string) {
-  return (value ?? "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function rentalRegion(rental: Rental) {
-  if (rental.suburb?.trim()) return rental.suburb.trim();
-
-  const addressParts = rental.address
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (addressParts.length > 1) return addressParts.at(-1) ?? "Marlborough";
-
-  return rental.area?.trim() || "Marlborough";
 }
 
 function DiaryRow({ label, value }: { label: string; value?: string | null }) {
@@ -127,6 +93,8 @@ function RentalCard({ rental }: { rental: Rental }) {
             <DiaryRow label="Phone" value={rental.contactPhone} />
             <DiaryRow label="Email" value={rental.contactEmail} />
             <DiaryRow label="Notes" value={rental.notes} />
+            <DiaryRow label="Result" value={rental.outcome} />
+            <DiaryRow label="Follow-up action" value={rental.followUpAction} />
             <DiaryRow label="Rating" value={rating} />
           </div>
         </details>
@@ -145,8 +113,7 @@ export function RentalsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
-  const [roomSize, setRoomSize] = useState("any");
-  const [region, setRegion] = useState("all-marlborough");
+  const [minBeds, setMinBeds] = useState("0");
   const [selectedBands, setSelectedBands] = useState<string[]>(() =>
     RENT_PRICE_BANDS.map((band) => band.id),
   );
@@ -177,52 +144,21 @@ export function RentalsDashboard() {
     void load(false);
   }, [load]);
 
-  const regionOptions = useMemo(() => {
-    const regions = new Map<string, string>();
-
-    for (const pinned of PINNED_REGIONS) {
-      regions.set(normaliseRegion(pinned), pinned);
-    }
-
-    for (const rental of data?.rentals ?? []) {
-      const label = rentalRegion(rental);
-      const key = normaliseRegion(label);
-      if (key && key !== "marlborough") regions.set(key, label);
-    }
-
-    const pinnedKeys = new Set(PINNED_REGIONS.map(normaliseRegion));
-    const discovered = [...regions.entries()]
-      .filter(([key]) => !pinnedKeys.has(key))
-      .map(([, label]) => label)
-      .sort((a, b) => a.localeCompare(b));
-
-    return [...PINNED_REGIONS, ...discovered];
-  }, [data]);
-
   const rentals = useMemo(() => {
     const query = search.trim().toLowerCase();
     const max = maxRent ? Number(maxRent) : Number.POSITIVE_INFINITY;
+    const beds = Number(minBeds);
 
     return [...(data?.rentals ?? [])]
       .filter((rental) => {
         const searchable = `${rental.address} ${rental.suburb ?? ""} ${rental.area ?? ""} ${rental.propertyManager ?? ""} ${rental.contactName ?? ""}`.toLowerCase();
         const matchesSearch = !query || searchable.includes(query);
         const matchesRent = rental.rent == null || rental.rent <= max;
-
-        const matchesRoom =
-          roomSize === "any" ||
-          (roomSize === "unknown" && (rental.bedrooms == null || rental.bedrooms === 0)) ||
-          (roomSize === "4plus" && rental.bedrooms != null && rental.bedrooms >= 4) ||
-          (!Number.isNaN(Number(roomSize)) && rental.bedrooms === Number(roomSize));
-
-        const matchesRegion =
-          region === "all-marlborough" ||
-          normaliseRegion(rentalRegion(rental)) === normaliseRegion(region);
-
-        return matchesSearch && matchesRent && matchesRoom && matchesRegion;
+        const matchesBeds = rental.bedrooms == null || rental.bedrooms >= beds;
+        return matchesSearch && matchesRent && matchesBeds;
       })
       .sort((a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER));
-  }, [data, search, maxRent, roomSize, region]);
+  }, [data, search, maxRent, minBeds]);
 
   const diaryBands = useMemo(() => priceBandCounts(rentals), [rentals]);
 
@@ -351,26 +287,13 @@ export function RentalsDashboard() {
           </label>
 
           <label>
-            <span>Bedroom / room size</span>
-            <select value={roomSize} onChange={(event) => setRoomSize(event.target.value)}>
-              <option value="any">Any room size</option>
-              <option value="unknown">Studio / not stated</option>
-              <option value="1">1 bedroom</option>
-              <option value="2">2 bedrooms</option>
-              <option value="3">3 bedrooms</option>
-              <option value="4plus">4+ bedrooms</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Region / suburb</span>
-            <select value={region} onChange={(event) => setRegion(event.target.value)}>
-              <option value="all-marlborough">All Marlborough</option>
-              {regionOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+            <span>Minimum bedrooms</span>
+            <select value={minBeds} onChange={(event) => setMinBeds(event.target.value)}>
+              <option value="0">Any</option>
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="3">3+</option>
+              <option value="4">4+</option>
             </select>
           </label>
         </section>
@@ -380,7 +303,7 @@ export function RentalsDashboard() {
             <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
             <h2>Choose the price bands to include</h2>
             <p>
-              Tick the weekly rent bands you want. Search, maximum rent, bedroom size and region filters above also apply to the diary export.
+              Tick the weekly rent bands you want. Your search, maximum-rent and bedroom filters above also apply to the diary export.
             </p>
 
             <div className="band-actions">
@@ -422,7 +345,7 @@ export function RentalsDashboard() {
             <div className="export-field-list">
               <strong>Fields filled automatically</strong>
               <span>
-                Date checked · Online · Private rental + price · Address · Advertised agent/property manager · Phone/email · Clickable listing link · Notes
+                Date checked · Online · Private rental + price · Address · Advertised agent/property manager · Phone/email · Clickable listing link · Notes · Result/follow-up
               </span>
             </div>
             <button

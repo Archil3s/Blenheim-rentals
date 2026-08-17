@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./sources.css";
 import "./export.css";
-import "./filter-overrides.css";
 
 export const metadata: Metadata = {
   title: "Blenheim Rentals",
