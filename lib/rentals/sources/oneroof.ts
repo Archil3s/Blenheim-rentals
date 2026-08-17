@@ -5,6 +5,10 @@ const SEARCH_PAGES = [
   "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_2",
   "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_1",
   "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_2",
+  "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_1",
+  "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_2",
+  "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_1",
+  "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_2",
 ];
 
 const HTML_ENTITY_MAP: Record<string, string> = {
@@ -48,8 +52,21 @@ function suburbFromAddress(address: string): string | undefined {
   return parts.length > 1 ? parts.at(-1) : undefined;
 }
 
-function regionFromUrl(url: string): "Marlborough" | "Nelson" | null {
+type SearchRegion = "Marlborough" | "Nelson" | "Kaikōura" | "Christchurch";
+
+function regionFromUrl(url: string): SearchRegion | null {
   const pathname = new URL(url).pathname.toLowerCase();
+
+  if (
+    pathname.includes("/property/marlborough/kaikoura/") ||
+    pathname.includes("/property/marlborough/kaik-ura/") ||
+    pathname.includes("/property/marlborough/kaikoura-surrounds/") ||
+    pathname.includes("/property/marlborough/kaik-ura-surrounds/")
+  ) {
+    return "Kaikōura";
+  }
+
+  if (pathname.includes("/property/canterbury/")) return "Christchurch";
   if (pathname.includes("/property/marlborough/")) return "Marlborough";
   if (pathname.includes("/property/nelson-bays/") || pathname.includes("/property/nelson/")) {
     return "Nelson";
@@ -115,7 +132,12 @@ export function parseOneRoofHtml(html: string): Rental[] {
   for (const match of html.matchAll(anchorPattern)) {
     const href = decodeHtml(match[2]);
     const url = absoluteUrl(href);
-    if (!url || !/\/property\/(?:marlborough|nelson-bays|nelson)\//i.test(new URL(url).pathname)) {
+    if (
+      !url ||
+      !/\/property\/(?:marlborough|nelson-bays|nelson|canterbury)\//i.test(
+        new URL(url).pathname,
+      )
+    ) {
       continue;
     }
 
@@ -166,7 +188,7 @@ export const oneRoofSource: RentalSourceAdapter = {
       throw new Error(
         failures.length > 0
           ? failures.join("; ")
-          : "OneRoof returned no Marlborough or Nelson listings",
+          : "OneRoof returned no Marlborough, Nelson, Kaikōura or Christchurch listings",
       );
     }
 
