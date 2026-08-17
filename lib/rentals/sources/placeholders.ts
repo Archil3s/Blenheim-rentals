@@ -15,7 +15,6 @@ function placeholder(name: string): RentalSourceAdapter {
 export const tradeMeSource = placeholder("Trade Me Property");
 export const realestateSource = placeholder("realestate.co.nz");
 export const myRentSource = placeholder("myRent");
-export const summitSource = placeholder("Summit Real Estate");
 export const bayleysSource = placeholder("Bayleys Marlborough");
 export const harcourtsSource = placeholder("Harcourts Blenheim");
 export const propertyBrokersSource = placeholder("Property Brokers Blenheim");
