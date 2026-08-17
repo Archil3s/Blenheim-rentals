@@ -86,13 +86,6 @@ function listingNotes(rental: Rental) {
   return values.join("; ");
 }
 
-function resultAndFollowUp(rental: Rental) {
-  const outcome = compact(rental.outcome) || "Available at last check";
-  const followUp = compact(rental.followUpAction) || "Open listing and contact property manager";
-  const rating = rental.rating ? ` ${"★".repeat(Math.min(5, rental.rating))}` : "";
-  return `${outcome}${rating}\nFollow up: ${followUp}`;
-}
-
 function rentalValues(rental?: Rental) {
   if (!rental) return Array(8).fill("");
   return [
@@ -103,7 +96,7 @@ function rentalValues(rental?: Rental) {
     compact(rental.contactName) || "Contact person not published",
     "",
     listingNotes(rental),
-    resultAndFollowUp(rental),
+    "",
   ];
 }
 
