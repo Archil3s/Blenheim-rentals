@@ -1,0 +1,191 @@
+.region-index-panel {
+  margin: 22px 0 26px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 8px 28px rgba(24, 49, 35, 0.05);
+}
+
+.region-index-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.region-index-heading h2 {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+}
+
+.region-index-heading > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.region-index-eyebrow {
+  margin: 0;
+  color: var(--forest);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.region-index-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.region-index-card {
+  display: grid;
+  gap: 4px;
+  min-height: 70px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 13px;
+  color: var(--ink);
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.region-index-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(24, 49, 35, 0.07);
+}
+
+.region-index-card span {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.region-index-card strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.region-index-card.active {
+  outline: 2px solid rgba(31, 90, 61, 0.32);
+  outline-offset: 1px;
+}
+
+.region-index-all {
+  background: #f7f8f5;
+}
+
+.region-index-marlborough {
+  border-color: #cfe5d4;
+  background: #f0f8f2;
+}
+
+.region-index-nelson {
+  border-color: #eadf9f;
+  background: #fff9df;
+}
+
+.region-index-kaikoura {
+  border-color: #cbdde5;
+  background: #f0f7fa;
+}
+
+.region-index-christchurch {
+  border-color: #ddd7e9;
+  background: #f6f3fa;
+}
+
+.region-card {
+  position: relative;
+  border-top-width: 4px;
+}
+
+.region-card.region-marlborough {
+  border-color: #cfe5d4;
+  border-top-color: #8fc49d;
+  background: linear-gradient(180deg, #f1f9f3 0%, #ffffff 44%);
+}
+
+.region-card.region-nelson {
+  border-color: #eadf9f;
+  border-top-color: #d7bd55;
+  background: linear-gradient(180deg, #fff9df 0%, #ffffff 44%);
+}
+
+.region-card.region-kaikoura {
+  border-color: #cbdde5;
+  border-top-color: #8eb8c8;
+  background: linear-gradient(180deg, #f0f7fa 0%, #ffffff 44%);
+}
+
+.region-card.region-christchurch {
+  border-color: #ddd7e9;
+  border-top-color: #b7a8d0;
+  background: linear-gradient(180deg, #f6f3fa 0%, #ffffff 44%);
+}
+
+.region-label {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.region-label-marlborough {
+  color: #28653a;
+  background: #dff0e3;
+}
+
+.region-label-nelson {
+  color: #725d13;
+  background: #f8eeb9;
+}
+
+.region-label-kaikoura {
+  color: #2d6074;
+  background: #dcecf2;
+}
+
+.region-label-christchurch {
+  color: #5d4a78;
+  background: #e9e3f2;
+}
+
+@media (max-width: 850px) {
+  .region-index-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .region-index-panel {
+    margin: 18px 0 22px;
+    padding: 14px;
+  }
+
+  .region-index-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .region-index-grid {
+    display: flex;
+    gap: 9px;
+    overflow-x: auto;
+    padding: 2px 1px 5px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .region-index-card {
+    flex: 0 0 138px;
+    min-height: 66px;
+    scroll-snap-align: start;
+  }
+}
