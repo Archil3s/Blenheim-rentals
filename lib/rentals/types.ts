@@ -3,10 +3,14 @@ export type Rental = {
   address: string;
   suburb?: string;
   area?: string;
+  region?: string;
   rent: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  parking?: number | null;
   imageUrl?: string;
+  imageUrls?: string[];
+  features?: string[];
   source: string;
   sourceListingId?: string;
   url: string;
