@@ -1,0 +1,89 @@
+.install-prompt {
+  position: fixed;
+  z-index: 1000;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+  margin: 0 auto;
+  border: 1px solid rgba(31, 90, 61, 0.16);
+  border-radius: 18px;
+  padding: 16px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 18px 45px rgba(20, 61, 42, 0.2);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.install-prompt-copy {
+  display: grid;
+  gap: 4px;
+  padding-right: 28px;
+}
+
+.install-prompt-copy strong {
+  font-size: 1rem;
+}
+
+.install-prompt-copy span,
+.install-prompt-steps small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.install-prompt-copy span {
+  font-size: 0.86rem;
+}
+
+.install-prompt-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.install-prompt-action {
+  min-height: 46px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 14px;
+  color: white;
+  background: var(--forest);
+  font-weight: 800;
+}
+
+.install-prompt-steps {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  font-size: 0.86rem;
+}
+
+.install-prompt-steps span {
+  line-height: 1.35;
+}
+
+.install-prompt-steps small {
+  margin-top: 2px;
+  font-size: 0.76rem;
+}
+
+@media (min-width: 700px) {
+  .install-prompt {
+    right: 22px;
+    bottom: 22px;
+    left: auto;
+    width: min(430px, calc(100vw - 44px));
+  }
+}
