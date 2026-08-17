@@ -2,7 +2,9 @@ import { deduplicateRentals } from "./deduplicate";
 import { rentalSources } from "./sources";
 import type { Rental, RentalFeed, SourceStatus } from "./types";
 
-function cleanRental(rental: Rental): Rental {
+function cleanRental(rental: Rental, checkedAt: string): Rental {
+  const propertyManager = rental.propertyManager?.trim() || rental.source;
+
   return {
     ...rental,
     address: rental.address.trim(),
@@ -11,16 +13,31 @@ function cleanRental(rental: Rental): Rental {
     rent: rental.rent != null && rental.rent > 0 ? Math.round(rental.rent) : null,
     bedrooms: rental.bedrooms != null && rental.bedrooms >= 0 ? rental.bedrooms : null,
     bathrooms: rental.bathrooms != null && rental.bathrooms >= 0 ? rental.bathrooms : null,
+    checkedAt,
+    contactType: rental.contactType?.trim() || "Online",
+    propertyType: rental.propertyType?.trim() || "Private rental",
+    propertyManager,
+    contactName: rental.contactName?.trim() || propertyManager,
+    contactPhone: rental.contactPhone?.trim() || "See original listing",
+    contactEmail: rental.contactEmail?.trim() || "See original listing",
+    notes: rental.notes?.trim() || "Current online rental listing.",
+    outcome: rental.outcome?.trim() || "Available at last check",
+    followUpAction:
+      rental.followUpAction?.trim() || "Open listing and contact property manager",
+    rating: rental.rating ?? null,
   };
 }
 
 export async function getRentalFeed(): Promise<RentalFeed> {
+  const checkedAt = new Date().toISOString();
   const enabledSources = rentalSources.filter((source) => source.enabled);
 
   const results = await Promise.all(
     enabledSources.map(async (source) => {
       try {
-        const rentals = (await source.fetchRentals()).map(cleanRental);
+        const rentals = (await source.fetchRentals()).map((rental) =>
+          cleanRental(rental, checkedAt),
+        );
         return {
           source: source.name,
           ok: true as const,
@@ -65,7 +82,7 @@ export async function getRentalFeed(): Promise<RentalFeed> {
   return {
     rentals,
     total: rentals.length,
-    checkedAt: new Date().toISOString(),
+    checkedAt,
     sources: statuses,
   };
 }
