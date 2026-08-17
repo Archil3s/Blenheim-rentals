@@ -18,7 +18,7 @@ function normalisePart(value: string) {
 
 function canonicalLocality(value?: string) {
   const text = normalisePart(value ?? "");
-  if (!text || /^\d+$/.test(text) || text === "marlborough district" || text === "marlborough") {
+  if (!text || /^\d+$/.test(text) || text === "marlborough district") {
     return "";
   }
   if (text === "blenheim central" || text === "blenheim") return "blenheim";
@@ -31,7 +31,8 @@ function keyFor(rental: Rental) {
   const locality =
     canonicalLocality(parts[1]) ||
     canonicalLocality(rental.suburb) ||
-    canonicalLocality(rental.area);
+    canonicalLocality(rental.area) ||
+    canonicalLocality(rental.region);
 
   if (street) {
     return `address:${street}:${locality}`;
@@ -68,8 +69,11 @@ function namedPerson(value: string | undefined, rental: Rental) {
 function richness(rental: Rental) {
   return (
     (rental.imageUrl ? 4 : 0) +
+    ((rental.imageUrls?.length ?? 0) > 1 ? 3 : 0) +
+    ((rental.features?.length ?? 0) > 0 ? 2 : 0) +
     (rental.bathrooms != null ? 1 : 0) +
     (rental.bedrooms != null ? 1 : 0) +
+    (rental.parking != null ? 1 : 0) +
     (rental.suburb ? 1 : 0) +
     (rental.area ? 1 : 0) +
     (namedPerson(rental.contactName, rental) ? 5 : 0) +
@@ -96,15 +100,24 @@ function mergeRentals(a: Rental, b: Rental) {
   const primary = aRicher ? a : b;
   const secondary = aRicher ? b : a;
   const contactName = chooseName(primary, secondary);
+  const imageUrls = [...new Set([
+    ...(primary.imageUrls ?? (primary.imageUrl ? [primary.imageUrl] : [])),
+    ...(secondary.imageUrls ?? (secondary.imageUrl ? [secondary.imageUrl] : [])),
+  ])].slice(0, 10);
+  const features = [...new Set([...(primary.features ?? []), ...(secondary.features ?? [])])].slice(0, 10);
 
   return {
     ...secondary,
     ...primary,
-    imageUrl: primary.imageUrl || secondary.imageUrl,
+    imageUrl: primary.imageUrl || secondary.imageUrl || imageUrls[0],
+    imageUrls: imageUrls.length ? imageUrls : undefined,
+    features: features.length ? features : undefined,
     bedrooms: primary.bedrooms ?? secondary.bedrooms,
     bathrooms: primary.bathrooms ?? secondary.bathrooms,
+    parking: primary.parking ?? secondary.parking,
     suburb: primary.suburb || secondary.suburb,
     area: primary.area || secondary.area,
+    region: primary.region || secondary.region,
     contactName,
     propertyManager:
       (contactName && namedPerson(contactName, primary) ? contactName : undefined) ||
