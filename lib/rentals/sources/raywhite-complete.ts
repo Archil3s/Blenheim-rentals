@@ -87,6 +87,11 @@ function firstCount(text: string, label: "bed" | "bath"): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function availability(text: string): string | null {
+  const match = text.match(/\bAvailable\s+(Now|Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|\d{1,2}\s+[A-Za-z]+)\b/i);
+  return match ? match[0].replace(/\s+/g, " ") : null;
+}
+
 export function parseRayWhiteCompleteHtml(html: string): Rental[] {
   const rentals: Rental[] = [];
   const seen = new Set<string>();
@@ -115,6 +120,8 @@ export function parseRayWhiteCompleteHtml(html: string): Rental[] {
     const id = `raywhite-complete:${sourceListingId}`;
     if (seen.has(id)) continue;
 
+    const available = availability(beforeAddress);
+
     seen.add(id);
     rentals.push({
       id,
@@ -127,6 +134,16 @@ export function parseRayWhiteCompleteHtml(html: string): Rental[] {
       source: "Ray White Complete PM",
       sourceListingId,
       url,
+      contactType: "Online",
+      propertyType: "Private rental",
+      propertyManager: "Ray White Complete Property Management",
+      contactName: "Ray White Complete Property Management team",
+      contactPhone: "+64 3 972 0012",
+      contactEmail: "completepm.nz@raywhite.com",
+      notes: available ? `${available}. Current online rental listing.` : "Current online rental listing.",
+      outcome: available ?? "Available at last check",
+      followUpAction: "Open listing, book viewing or contact Complete Property Management",
+      rating: null,
     });
   }
 
