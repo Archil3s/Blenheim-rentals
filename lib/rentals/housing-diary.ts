@@ -174,7 +174,8 @@ function contactCell(rental: Rental) {
 
   if (usefulPhone) {
     const link = phoneLink(usefulPhone);
-    children.push(link ? hyperlinkParagraph(usefulPhone, link) : ...cellParagraphs(usefulPhone));
+    if (link) children.push(hyperlinkParagraph(usefulPhone, link));
+    else children.push(...cellParagraphs(usefulPhone));
   }
 
   if (usefulEmail) {
