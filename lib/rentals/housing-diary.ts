@@ -17,6 +17,7 @@ import {
   VerticalAlign,
   WidthType,
 } from "docx";
+import { rentPriceBandFor } from "./price-bands";
 import type { Rental } from "./types";
 
 const PAGE_WIDTH = 11906;
@@ -79,7 +80,9 @@ function contactDetails(rental: Rental) {
 }
 
 function listingNotes(rental: Rental) {
+  const band = rentPriceBandFor(rental.rent);
   const values = [
+    band ? `Price band: ${band.label}` : "",
     rental.bedrooms != null ? `${rental.bedrooms} bed` : "",
     rental.bathrooms != null ? `${rental.bathrooms} bath` : "",
     compact(rental.notes),
