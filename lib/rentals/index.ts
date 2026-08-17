@@ -2,6 +2,8 @@ import { deduplicateRentals } from "./deduplicate";
 import { rentalSources } from "./sources";
 import type { Rental, RentalFeed, SourceStatus } from "./types";
 
+const SOURCE_TIMEOUT_MS = 8_000;
+
 function cleanRental(rental: Rental, checkedAt: string): Rental {
   const propertyManager = rental.propertyManager?.trim() || rental.source;
   const imageUrls = [...new Set((rental.imageUrls ?? []).map((value) => value.trim()).filter(Boolean))];
@@ -35,6 +37,23 @@ function cleanRental(rental: Rental, checkedAt: string): Rental {
   };
 }
 
+async function withSourceTimeout<T>(promise: Promise<T>, sourceName: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`${sourceName} exceeded ${SOURCE_TIMEOUT_MS / 1000}s refresh limit`)),
+          SOURCE_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export async function getRentalFeed(): Promise<RentalFeed> {
   const checkedAt = new Date().toISOString();
   const enabledSources = rentalSources.filter((source) => source.enabled);
@@ -42,9 +61,9 @@ export async function getRentalFeed(): Promise<RentalFeed> {
   const results = await Promise.all(
     enabledSources.map(async (source) => {
       try {
-        const rentals = (await source.fetchRentals()).map((rental) =>
-          cleanRental(rental, checkedAt),
-        );
+        const rentals = (
+          await withSourceTimeout(source.fetchRentals(), source.name)
+        ).map((rental) => cleanRental(rental, checkedAt));
         return {
           source: source.name,
           ok: true as const,
