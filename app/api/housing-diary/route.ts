@@ -1,8 +1,6 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { getRentalFeed } from "@/lib/rentals";
 import { getCachedFeed, setCachedFeed } from "@/lib/rentals/cache";
-import { generateHousingDiary, TEMPLATE_PATH } from "@/lib/rentals/housing-diary";
+import { generateHousingDiary } from "@/lib/rentals/housing-diary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,9 +49,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const templatePath = path.join(process.cwd(), TEMPLATE_PATH);
-    const template = await readFile(templatePath);
-    const diary = await generateHousingDiary(template, clientName, rentals);
+    const diary = await generateHousingDiary(clientName, rentals);
     const filename = `${safeFilename(clientName)} - Housing Search Diary.docx`;
 
     return new Response(diary, {
