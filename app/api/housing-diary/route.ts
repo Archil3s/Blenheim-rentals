@@ -1,56 +1,43 @@
 import { getRentalFeed } from "@/lib/rentals";
 import { getCachedFeed, setCachedFeed } from "@/lib/rentals/cache";
 import { generateHousingDiary } from "@/lib/rentals/housing-diary";
+import { selectDiaryRentalsByPriceBand } from "@/lib/rentals/price-bands";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function safeFilename(value: string) {
-  return value
-    .trim()
-    .replace(/[^a-zA-Z0-9 _-]+/g, "")
-    .replace(/\s+/g, " ")
-    .slice(0, 60) || "Client";
+function exportDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "current";
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+    .format(date)
+    .replaceAll("/", "-");
 }
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
-    const body = (await request.json()) as {
-      clientName?: string;
-      rentalIds?: string[];
-    };
-
-    const clientName = body.clientName?.trim() ?? "";
-    if (!clientName) {
-      return Response.json({ error: "Client name is required" }, { status: 400 });
-    }
-
-    const rentalIds = Array.isArray(body.rentalIds) ? body.rentalIds.slice(0, 15) : [];
-    if (rentalIds.length === 0) {
-      return Response.json({ error: "Select at least one rental" }, { status: 400 });
-    }
-
     let feed = getCachedFeed(false)?.value;
     if (!feed) {
       feed = await getRentalFeed();
       setCachedFeed(feed);
     }
 
-    const byId = new Map(feed.rentals.map((rental) => [rental.id, rental]));
-    const rentals = rentalIds.flatMap((id) => {
-      const rental = byId.get(id);
-      return rental ? [rental] : [];
-    });
+    const rentals = selectDiaryRentalsByPriceBand(feed.rentals, 15);
 
     if (rentals.length === 0) {
       return Response.json(
-        { error: "Those rentals are no longer in the current feed. Refresh and try again." },
+        { error: "No current rentals were found in the $300+ diary price bands." },
         { status: 409 },
       );
     }
 
-    const diary = await generateHousingDiary(clientName, rentals);
-    const filename = `${safeFilename(clientName)} - Housing Search Diary.docx`;
+    const diary = await generateHousingDiary("", rentals);
+    const filename = `Housing Search Diary - ${exportDate(feed.checkedAt)}.docx`;
 
     return new Response(diary, {
       headers: {
