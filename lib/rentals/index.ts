@@ -2,7 +2,7 @@ import { deduplicateRentals } from "./deduplicate";
 import { rentalSources } from "./sources";
 import type { Rental, RentalFeed, SourceStatus } from "./types";
 
-const SOURCE_TIMEOUT_MS = 8_000;
+const SOURCE_TIMEOUT_MS = 5_000;
 
 function cleanRental(rental: Rental, checkedAt: string): Rental {
   const propertyManager = rental.propertyManager?.trim() || rental.source;
