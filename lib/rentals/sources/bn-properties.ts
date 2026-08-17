@@ -72,6 +72,29 @@ function firstNumber(text: string, pattern: RegExp): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function agentDetails(plain: string) {
+  const block = plain.match(
+    /Agent info:\s*([A-Za-z][A-Za-z' -]{2,60}?)\s+([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\s+M:\s*([+0-9() -]{8,})/i,
+  );
+
+  const contactName =
+    block?.[1]?.trim() ||
+    plain.match(/Contact\s+([A-Z][A-Za-z' -]{2,50}?)\s+for more information/i)?.[1]?.trim() ||
+    "B&N Properties Marlborough";
+
+  const contactEmail =
+    block?.[2]?.trim() ||
+    plain.match(/[A-Z0-9._%+-]+@bnproperties\.co\.nz/i)?.[0] ||
+    "See original listing";
+
+  const contactPhone =
+    block?.[3]?.trim() ||
+    plain.match(/(?:\+64|0)\s?\d{1,3}[\s-]?\d{3}[\s-]?\d{3,4}/)?.[0] ||
+    "0800 111 252";
+
+  return { contactName, contactEmail, contactPhone };
+}
+
 function parseDetailPage(html: string, url: string): Rental | null {
   const plain = textFromHtml(html);
   if (!isLocal(plain)) return null;
@@ -98,7 +121,10 @@ function parseDetailPage(html: string, url: string): Rental | null {
 
   if (!address || !isLocal(`${address} ${plain}`)) return null;
 
+  const { contactName, contactEmail, contactPhone } = agentDetails(plain);
+  const availableFrom = plain.match(/Available from:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i)?.[1];
   const sourceListingId = listingIdFromUrl(url);
+
   return {
     id: `bn:${sourceListingId}`,
     address,
@@ -110,6 +136,18 @@ function parseDetailPage(html: string, url: string): Rental | null {
     source: "B&N Properties",
     sourceListingId,
     url,
+    contactType: "Online",
+    propertyType: "Private rental",
+    propertyManager: contactName,
+    contactName,
+    contactPhone,
+    contactEmail,
+    notes: availableFrom
+      ? `Available from ${availableFrom}. Current online rental listing.`
+      : "Current online rental listing.",
+    outcome: availableFrom ? `Available from ${availableFrom}` : "Available at last check",
+    followUpAction: `Open listing and contact ${contactName}`,
+    rating: null,
   };
 }
 
