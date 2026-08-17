@@ -5,15 +5,22 @@ import type { Rental, RentalFeed, SourceStatus } from "./types";
 
 function cleanRental(rental: Rental, checkedAt: string): Rental {
   const propertyManager = rental.propertyManager?.trim() || rental.source;
+  const imageUrls = [...new Set((rental.imageUrls ?? []).map((value) => value.trim()).filter(Boolean))];
+  const features = [...new Set((rental.features ?? []).map((value) => value.trim()).filter(Boolean))];
 
   return {
     ...rental,
     address: rental.address.trim(),
     suburb: rental.suburb?.trim() || undefined,
     area: rental.area?.trim() || undefined,
+    region: rental.region?.trim() || "Marlborough",
     rent: rental.rent != null && rental.rent > 0 ? Math.round(rental.rent) : null,
     bedrooms: rental.bedrooms != null && rental.bedrooms >= 0 ? rental.bedrooms : null,
     bathrooms: rental.bathrooms != null && rental.bathrooms >= 0 ? rental.bathrooms : null,
+    parking: rental.parking != null && rental.parking >= 0 ? rental.parking : null,
+    imageUrl: rental.imageUrl?.trim() || imageUrls[0] || undefined,
+    imageUrls: imageUrls.length ? imageUrls : undefined,
+    features: features.length ? features : undefined,
     checkedAt,
     contactType: rental.contactType?.trim() || "Online",
     propertyType: rental.propertyType?.trim() || "Private rental",
