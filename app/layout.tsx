@@ -3,7 +3,6 @@ import "./globals.css";
 import "./sources.css";
 import "./export.css";
 import "./rental-enhancements.css";
-import "./iphone.css";
 
 export const metadata: Metadata = {
   title: "Marlborough + Nelson Rentals",
@@ -12,14 +11,13 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Rental Finder",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  viewportFit: "cover",
   themeColor: "#143d2a",
 } as Viewport;
 
