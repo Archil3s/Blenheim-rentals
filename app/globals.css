@@ -217,13 +217,15 @@ a {
 }
 
 .feed-heading h2,
-.sources-panel h2 {
+.sources-panel h2,
+.directory-panel h2 {
   margin: 0;
   font-size: 1.3rem;
 }
 
 .feed-heading p,
-.sources-panel p {
+.sources-panel p,
+.directory-panel p {
   margin: 5px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
@@ -301,6 +303,74 @@ a {
   font-size: 0.88rem;
 }
 
+.manager-line {
+  display: grid;
+  gap: 3px;
+  margin-top: 15px;
+  border-top: 1px solid var(--line);
+  padding-top: 13px;
+}
+
+.manager-line span {
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.manager-line strong {
+  font-size: 0.92rem;
+}
+
+.diary-details {
+  margin-top: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbf9;
+}
+
+.diary-details summary {
+  cursor: pointer;
+  padding: 11px 12px;
+  color: var(--forest);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.diary-details[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.diary-grid {
+  display: grid;
+  gap: 0;
+  padding: 4px 12px 8px;
+}
+
+.diary-row {
+  display: grid;
+  grid-template-columns: minmax(105px, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #edf0ed;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.diary-row:last-child {
+  border-bottom: 0;
+}
+
+.diary-row span {
+  color: var(--muted);
+}
+
+.diary-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .listing-link {
   display: inline-block;
   margin-top: 17px;
@@ -364,6 +434,95 @@ a {
 .source-dot.bad { background: #bb4b4b; }
 .source-dot.off { background: #a9afab; }
 
+.directory-panel {
+  margin-top: 36px;
+  border-top: 1px solid var(--line);
+  padding-top: 26px;
+}
+
+.directory-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.directory-heading > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.directory-card {
+  display: grid;
+  gap: 10px;
+  min-height: 132px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  color: var(--ink);
+  background: white;
+  text-decoration: none;
+}
+
+.directory-card:hover {
+  border-color: #becbc1;
+  box-shadow: 0 5px 18px rgba(24, 49, 35, 0.05);
+}
+
+.directory-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.directory-card p {
+  line-height: 1.35;
+}
+
+.directory-link {
+  align-self: end;
+  color: var(--forest);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.access-pill {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 0.63rem;
+  font-weight: 900;
+}
+
+.access-pill.live {
+  color: #17633d;
+  background: #e1f2e8;
+}
+
+.access-pill.api {
+  color: #315b8d;
+  background: #e7eff9;
+}
+
+.access-pill.permission {
+  color: #7b5a16;
+  background: #f7edcf;
+}
+
+.access-pill.manual {
+  color: #666d68;
+  background: #eef0ee;
+}
+
 @media (max-width: 850px) {
   .hero-inner {
     align-items: flex-start;
@@ -372,7 +531,8 @@ a {
 
   .filters,
   .rental-grid,
-  .sources-panel {
+  .sources-panel,
+  .directory-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -393,7 +553,8 @@ a {
   }
 
   .status-bar,
-  .status-meta {
+  .status-meta,
+  .directory-heading {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -408,7 +569,8 @@ a {
 
   .filters,
   .rental-grid,
-  .sources-panel {
+  .sources-panel,
+  .directory-grid {
     grid-template-columns: 1fr;
   }
 
@@ -419,5 +581,10 @@ a {
 
   .rental-body h2 {
     min-height: auto;
+  }
+
+  .diary-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 }
