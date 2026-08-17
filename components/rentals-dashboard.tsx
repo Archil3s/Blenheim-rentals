@@ -9,11 +9,21 @@ import {
 import { rentalSourceDirectory } from "@/lib/rentals/source-directory";
 import type { Rental, RentalsResponse } from "@/lib/rentals/types";
 
+const REGION_OPTIONS = ["Marlborough", "Nelson", "Kaikōura", "Christchurch"] as const;
+
 const money = new Intl.NumberFormat("en-NZ", {
   style: "currency",
   currency: "NZD",
   maximumFractionDigits: 0,
 });
+
+function regionSlug(region?: string) {
+  const value = region?.toLowerCase() ?? "marlborough";
+  if (value === "nelson") return "nelson";
+  if (value === "kaikōura" || value === "kaikoura") return "kaikoura";
+  if (value === "christchurch") return "christchurch";
+  return "marlborough";
+}
 
 function formatCheckedAt(value?: string) {
   if (!value) return "Not checked yet";
@@ -86,7 +96,7 @@ function RentalCard({ rental }: { rental: Rental }) {
   ].filter(Boolean);
 
   return (
-    <article className="rental-card">
+    <article className={`rental-card region-card region-${regionSlug(rental.region)}`}>
       <RentalPhotos rental={rental} />
 
       <div className="rental-body">
@@ -108,7 +118,9 @@ function RentalCard({ rental }: { rental: Rental }) {
         )}
 
         <div className="location-line">
-          <span>{rental.region ?? "Marlborough"}</span>
+          <span className={`region-label region-label-${regionSlug(rental.region)}`}>
+            {rental.region ?? "Marlborough"}
+          </span>
           {rental.suburb && <span>· {rental.suburb}</span>}
         </div>
 
@@ -188,7 +200,25 @@ export function RentalsDashboard() {
     );
     suburbs.add("Blenheim Central");
     suburbs.add("Nelson City");
+    suburbs.add("Kaikōura");
+    suburbs.add("Christchurch Central");
     return [...suburbs].sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const regionCounts = useMemo(() => {
+    const counts = Object.fromEntries(REGION_OPTIONS.map((region) => [region, 0])) as Record<
+      (typeof REGION_OPTIONS)[number],
+      number
+    >;
+
+    for (const rental of data?.rentals ?? []) {
+      const region = REGION_OPTIONS.find(
+        (candidate) => candidate.toLowerCase() === (rental.region ?? "Marlborough").toLowerCase(),
+      );
+      if (region) counts[region] += 1;
+    }
+
+    return counts;
   }, [data]);
 
   const rentals = useMemo(() => {
@@ -205,7 +235,8 @@ export function RentalsDashboard() {
 
         let matchesLocation = true;
         if (location.startsWith("region:")) {
-          matchesLocation = (rental.region ?? "Marlborough").toLowerCase() === location.slice(7).toLowerCase();
+          matchesLocation =
+            (rental.region ?? "Marlborough").toLowerCase() === location.slice(7).toLowerCase();
         } else if (location.startsWith("suburb:")) {
           const wanted = location.slice(7).toLowerCase();
           matchesLocation =
@@ -252,6 +283,7 @@ export function RentalsDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rentalIds: diaryRentals.map((rental) => rental.id),
+          rentals: diaryRentals,
         }),
       });
 
@@ -286,10 +318,10 @@ export function RentalsDashboard() {
       <header className="hero">
         <div className="hero-inner">
           <div>
-            <p className="eyebrow">MARLBOROUGH + NELSON</p>
+            <p className="eyebrow">MARLBOROUGH · NELSON · KAIKŌURA · CHRISTCHURCH</p>
             <h1>Rental Finder</h1>
             <p className="hero-copy">
-              Current rentals across Marlborough and Nelson, with housing-diary details, photos, features and direct listing links.
+              Current rentals across Marlborough, Nelson, Kaikōura and Christchurch, with housing-diary details, photos, features and direct listing links.
             </p>
           </div>
 
@@ -312,6 +344,39 @@ export function RentalsDashboard() {
           </div>
         </div>
 
+        <section className="region-index-panel" aria-label="Region listing index">
+          <div className="region-index-heading">
+            <div>
+              <p className="region-index-eyebrow">AREA INDEX</p>
+              <h2>Browse rental regions</h2>
+            </div>
+            <span>Choose all areas or one region</span>
+          </div>
+
+          <div className="region-index-grid">
+            <button
+              type="button"
+              className={`region-index-card region-index-all ${location === "all" ? "active" : ""}`}
+              onClick={() => setLocation("all")}
+            >
+              <span>All areas</span>
+              <strong>{data?.rentals.length ?? 0}</strong>
+            </button>
+
+            {REGION_OPTIONS.map((region) => (
+              <button
+                type="button"
+                key={region}
+                className={`region-index-card region-index-${regionSlug(region)} ${location === `region:${region}` ? "active" : ""}`}
+                onClick={() => setLocation(`region:${region}`)}
+              >
+                <span>{region}</span>
+                <strong>{regionCounts[region]}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {demoMode && (
           <div className="notice">
             <strong>Demo mode is on.</strong> Sample listings are being shown alongside configured sources.
@@ -326,17 +391,20 @@ export function RentalsDashboard() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="e.g. Springlands, Nelson City or Ana"
+              placeholder="e.g. Springlands, Kaikōura, Riccarton or Ana"
             />
           </label>
 
           <label>
-            <span>Location</span>
+            <span>Area</span>
             <select value={location} onChange={(event) => setLocation(event.target.value)}>
-              <option value="all">All Marlborough + Nelson</option>
+              <option value="all">All areas</option>
               <optgroup label="Regions">
-                <option value="region:Marlborough">Marlborough</option>
-                <option value="region:Nelson">Nelson</option>
+                {REGION_OPTIONS.map((region) => (
+                  <option key={region} value={`region:${region}`}>
+                    {region}
+                  </option>
+                ))}
               </optgroup>
               <optgroup label="Suburbs / areas">
                 {suburbOptions.map((suburb) => (
@@ -378,7 +446,7 @@ export function RentalsDashboard() {
             <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
             <h2>Choose the price bands to include</h2>
             <p>
-              Tick the weekly rent bands you want. The search, location, maximum-rent and bedroom filters above also apply to the diary export.
+              Tick the weekly rent bands you want. The search, area, maximum-rent and bedroom filters above also apply to the diary export.
             </p>
 
             <div className="band-actions">
