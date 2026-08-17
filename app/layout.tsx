@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IphoneInstallPrompt } from "@/components/iphone-install-prompt";
+import { DesktopPopoutPrompt } from "@/components/desktop-popout-prompt";
 import "./globals.css";
 import "./sources.css";
 import "./export.css";
@@ -32,7 +32,7 @@ export default function RootLayout({
     <html lang="en-NZ">
       <body>
         {children}
-        <IphoneInstallPrompt />
+        <DesktopPopoutPrompt />
       </body>
     </html>
   );
