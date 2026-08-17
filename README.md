@@ -1,15 +1,17 @@
 # Blenheim Rentals
 
-A lightweight, stateless Blenheim rental aggregator built with Next.js.
+A lightweight, stateless Blenheim rental viewer built with Next.js.
 
-The app is deliberately designed **without a database**. When the browser requests `/api/rentals`, the server asks the enabled source adapters for their current listings, normalises and deduplicates them, returns JSON, and keeps only a short in-process RAM cache.
+The app is deliberately designed **without a database** and **without Playwright/browser automation**. A phone or desktop browser requests `/api/rentals`; the hosted Next.js server fetches enabled rental sources using ordinary HTTP, normalises and deduplicates the current results, returns JSON, and keeps only a short in-process RAM cache.
 
 ## Current status
 
-The application shell is complete and includes:
+The application includes:
 
 - responsive Blenheim rentals dashboard
 - `/api/rentals` Route Handler
+- live OneRoof HTTP adapter
+- Blenheim-area filtering
 - source adapter architecture
 - concurrent source fetching
 - per-source failure isolation
@@ -18,35 +20,22 @@ The application shell is complete and includes:
 - 30-second guard against repeated forced refreshes
 - search, maximum-rent and minimum-bedroom filters
 - source health/status display
-- demo adapter so the project works before live sources are connected
+- optional demo adapter for development
 
-The Trade Me, realestate.co.nz, myRent, Summit and local-agency adapters are currently placeholders. They are intentionally not scraping those sites yet.
+The Trade Me, realestate.co.nz, myRent, Summit and local-agency adapters remain placeholders.
 
-## Run locally
-
-```bash
-npm install
-npm run dev
-```
-
-Then open `http://localhost:3000`.
-
-The demo feed is on by default. Copy `.env.example` to `.env.local` if you want to change cache settings.
-
-```bash
-cp .env.example .env.local
-```
-
-## Data flow
+## Phone-friendly data flow
 
 ```text
-Browser
+iPhone / Android / desktop browser
   ↓
 GET /api/rentals
   ↓
+hosted Next.js server
+  ↓
 short RAM cache
   ↓ cache miss
-source adapters (concurrently)
+plain HTTP source adapters
   ↓
 normalise
   ↓
@@ -57,7 +46,36 @@ JSON response
 render cards + filters
 ```
 
+The phone does not run a scraper, Chromium, Playwright, Node.js or a local helper service. It only loads the website and calls its API.
+
 No rental listings are written to SQLite, Postgres, local files, browser storage, or another persistent database.
+
+## OneRoof source
+
+`lib/rentals/sources/oneroof.ts` currently requests the public Marlborough rental result pages with server-side `fetch()`, extracts property links and visible listing text, and returns Blenheim-area rentals in the common `Rental` format.
+
+The adapter is enabled by default. Disable it with:
+
+```env
+ONEROOF_ENABLED=false
+```
+
+Automated retrieval can be affected by a provider changing its HTML, access controls, robots policy or terms. The adapter therefore remains isolated so it can be changed or disabled without affecting the rest of the application.
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+Copy `.env.example` to `.env.local` to change source/cache settings:
+
+```bash
+cp .env.example .env.local
+```
 
 ## RAM cache behaviour
 
@@ -72,7 +90,7 @@ A normal request may reuse a feed for up to 3 minutes. The Refresh listings butt
 
 This cache is intentionally ephemeral. On serverless hosting, each running function instance can have its own memory and that memory can disappear whenever the platform recycles the instance.
 
-## Adding a live source
+## Adding another live source
 
 Each source implements `RentalSourceAdapter`:
 
@@ -86,19 +104,15 @@ export type RentalSourceAdapter = {
 
 Return the common `Rental` shape from the adapter and add it to `lib/rentals/sources/index.ts`.
 
-Keep source-specific parsing, API credentials, selectors and error handling inside that adapter. The rest of the application should not know how the provider works.
-
-Prefer an official API, feed, partnership endpoint or other source-approved access method where one exists. Do not build around bypassing authentication, bot controls or access restrictions. Check each provider's current terms and robots/access rules before enabling automated retrieval.
+Keep source-specific parsing, credentials, selectors and error handling inside that adapter. Prefer an official API/feed or other permitted public-page retrieval where available. Do not build around bypassing authentication or access controls.
 
 ## Demo mode
 
-Demo listings are intentionally obvious sample data. To disable them:
+Demo listings are now disabled by default. To explicitly enable them for UI development:
 
 ```env
-RENTALS_DEMO_MODE=false
+RENTALS_DEMO_MODE=true
 ```
-
-Do this when at least one real adapter is ready so an empty source configuration is not mistaken for a broken UI.
 
 ## Deploy
 
@@ -106,17 +120,10 @@ The project is suitable for Vercel or another Node-compatible Next.js host.
 
 For Vercel:
 
-1. Import this GitHub repository into Vercel.
+1. Import `Archil3s/Blenheim-rentals` into Vercel.
 2. Keep the framework preset as Next.js.
-3. Add any environment variables required by future source adapters.
-4. Deploy.
+3. Deploy with the default environment settings initially.
+4. Open `/api/rentals` on the deployed site and confirm the OneRoof source reports `ok: true` and returns listings.
+5. Then test the dashboard from your phone.
 
 No database service is required.
-
-## Suggested next implementation order
-
-1. Identify the cleanest permitted live source for Blenheim rentals.
-2. Implement that one adapter end-to-end.
-3. Validate normalisation and duplicate handling against real listings.
-4. Add additional providers one at a time.
-5. Turn off demo mode.
