@@ -1,4 +1,3 @@
-import { enrichRentalContacts } from "./contact-enrichment";
 import { deduplicateRentals } from "./deduplicate";
 import { rentalSources } from "./sources";
 import type { Rental, RentalFeed, SourceStatus } from "./types";
@@ -83,8 +82,7 @@ export async function getRentalFeed(): Promise<RentalFeed> {
     };
   });
 
-  const deduplicated = deduplicateRentals(results.flatMap((result) => result.rentals));
-  const rentals = (await enrichRentalContacts(deduplicated)).sort(
+  const rentals = deduplicateRentals(results.flatMap((result) => result.rentals)).sort(
     (a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER),
   );
 
