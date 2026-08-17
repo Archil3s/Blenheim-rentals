@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_EXPORT_RENTALS = 250;
 const MAX_CONTACT_ENRICHMENT = 20;
+const CONTACT_ENRICHMENT_BUDGET_MS = 3_000;
 
 function exportDate(value?: string) {
   const date = value ? new Date(value) : new Date();
@@ -55,9 +56,21 @@ async function boundedContactEnrichment(rentals: Rental[]) {
   const candidates = rentals.filter(needsContactLookup).slice(0, MAX_CONTACT_ENRICHMENT);
   if (candidates.length === 0) return rentals;
 
-  const enriched = await enrichRentalContacts(candidates);
-  const byId = new Map(enriched.map((rental) => [rental.id, rental]));
-  return rentals.map((rental) => byId.get(rental.id) ?? rental);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const enriched = await Promise.race([
+      enrichRentalContacts(candidates),
+      new Promise<Rental[]>((resolve) => {
+        timer = setTimeout(() => resolve([]), CONTACT_ENRICHMENT_BUDGET_MS);
+      }),
+    ]);
+
+    if (enriched.length === 0) return rentals;
+    const byId = new Map(enriched.map((rental) => [rental.id, rental]));
+    return rentals.map((rental) => byId.get(rental.id) ?? rental);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function POST(request: Request) {
@@ -73,9 +86,11 @@ export async function POST(request: Request) {
 
     let rentals: Rental[] = suppliedRentals;
     let checkedAt = suppliedRentals.find((rental) => rental.checkedAt)?.checkedAt;
+    let canEnrichContacts = suppliedRentals.length > 0;
 
-    // Backwards-compatible fallback for older clients. New clients send the selected
-    // rental rows directly so Netlify does not have to rebuild the feed on a cold instance.
+    // Backwards-compatible path for the currently deployed phone UI. If this request
+    // lands on a cold Netlify instance, rebuild only the fast feed and do not then spend
+    // another several seconds opening individual property pages.
     if (rentals.length === 0) {
       const requestedIds = Array.isArray(body.rentalIds)
         ? [
@@ -91,10 +106,12 @@ export async function POST(request: Request) {
         return Response.json({ error: "No rentals are selected for the diary." }, { status: 400 });
       }
 
-      let feed = getCachedFeed(false)?.value;
+      const cached = getCachedFeed(false)?.value;
+      let feed = cached;
       if (!feed) {
         feed = await getRentalFeed();
         setCachedFeed(feed);
+        canEnrichContacts = false;
       }
 
       checkedAt = feed.checkedAt;
@@ -112,10 +129,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Contact lookup is deliberately bounded. A slow listing site should never prevent
-    // the actual diary document from being created.
-    const enrichedRentals = await boundedContactEnrichment(rentals);
-    const diary = await generateHousingDiary("", enrichedRentals);
+    const exportRentals = canEnrichContacts
+      ? await boundedContactEnrichment(rentals)
+      : rentals;
+    const diary = await generateHousingDiary("", exportRentals);
     const filename = `Housing Search Diary - ${exportDate(checkedAt)}.docx`;
 
     return new Response(diary, {
