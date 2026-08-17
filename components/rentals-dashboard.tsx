@@ -28,7 +28,19 @@ function accessLabel(access: "live" | "api" | "permission" | "manual") {
   return "OPEN SITE";
 }
 
+function DiaryRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="diary-row">
+      <span>{label}</span>
+      <strong>{value || "Not provided"}</strong>
+    </div>
+  );
+}
+
 function RentalCard({ rental }: { rental: Rental }) {
+  const rating = rental.rating != null ? `${"★".repeat(rental.rating)}${"☆".repeat(Math.max(0, 5 - rental.rating))}` : "Not rated";
+  const price = rental.rent ? `${money.format(rental.rent)}/wk` : "Rent TBC";
+
   return (
     <article className="rental-card">
       <div
@@ -46,7 +58,7 @@ function RentalCard({ rental }: { rental: Rental }) {
 
       <div className="rental-body">
         <div className="price-row">
-          <strong>{rental.rent ? `${money.format(rental.rent)}/wk` : "Rent TBC"}</strong>
+          <strong>{price}</strong>
           <span>{rental.suburb ?? rental.area ?? "Blenheim"}</span>
         </div>
 
@@ -56,6 +68,29 @@ function RentalCard({ rental }: { rental: Rental }) {
           <span>🛏 {rental.bedrooms ?? "–"} beds</span>
           <span>🛁 {rental.bathrooms ?? "–"} baths</span>
         </div>
+
+        <div className="manager-line">
+          <span>Property manager</span>
+          <strong>{rental.propertyManager ?? rental.source}</strong>
+        </div>
+
+        <details className="diary-details">
+          <summary>Housing diary fields</summary>
+          <div className="diary-grid">
+            <DiaryRow label="Checked" value={formatCheckedAt(rental.checkedAt)} />
+            <DiaryRow label="Contact type / how found" value={rental.contactType} />
+            <DiaryRow label="Property type / price" value={`${rental.propertyType ?? "Private rental"} · ${price}`} />
+            <DiaryRow label="Property address" value={rental.address} />
+            <DiaryRow label="Property manager" value={rental.propertyManager ?? rental.source} />
+            <DiaryRow label="Contact person" value={rental.contactName} />
+            <DiaryRow label="Phone" value={rental.contactPhone} />
+            <DiaryRow label="Email" value={rental.contactEmail} />
+            <DiaryRow label="Notes" value={rental.notes} />
+            <DiaryRow label="Result" value={rental.outcome} />
+            <DiaryRow label="Follow-up action" value={rental.followUpAction} />
+            <DiaryRow label="Rating" value={rating} />
+          </div>
+        </details>
 
         <a href={rental.url} target="_blank" rel="noreferrer" className="listing-link">
           View original listing ↗
@@ -104,7 +139,7 @@ export function RentalsDashboard() {
 
     return [...(data?.rentals ?? [])]
       .filter((rental) => {
-        const searchable = `${rental.address} ${rental.suburb ?? ""} ${rental.area ?? ""}`.toLowerCase();
+        const searchable = `${rental.address} ${rental.suburb ?? ""} ${rental.area ?? ""} ${rental.propertyManager ?? ""} ${rental.contactName ?? ""}`.toLowerCase();
         const matchesSearch = !query || searchable.includes(query);
         const matchesRent = rental.rent == null || rental.rent <= max;
         const matchesBeds = rental.bedrooms == null || rental.bedrooms >= beds;
@@ -124,7 +159,7 @@ export function RentalsDashboard() {
             <p className="eyebrow">TE WAIHARAKEKE · MARLBOROUGH</p>
             <h1>Blenheim Rentals</h1>
             <p className="hero-copy">
-              One clean view of current rentals, plus direct access to every major local rental source.
+              One clean view of current rentals, with housing-diary details and direct access to every major local rental source.
             </p>
           </div>
 
@@ -157,11 +192,11 @@ export function RentalsDashboard() {
 
         <section className="filters" aria-label="Rental filters">
           <label>
-            <span>Search area or address</span>
+            <span>Search area, address or manager</span>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="e.g. Springlands"
+              placeholder="e.g. Springlands or Ana"
             />
           </label>
 
