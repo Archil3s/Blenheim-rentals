@@ -16,11 +16,11 @@ import { rayWhiteCompleteSource } from "./raywhite-complete";
 import { rayWhiteSource } from "./raywhite";
 
 export const rentalSources = [
+  oneRoofSource,
   rayWhiteSource,
   rayWhiteCompleteSource,
   bnPropertiesSource,
   quinovicSource,
-  oneRoofSource,
   realestateSource,
   bayleysSource,
   harcourtsSource,
