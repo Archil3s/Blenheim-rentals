@@ -1,3 +1,4 @@
+import { enrichRentalContacts } from "./contact-enrichment";
 import { deduplicateRentals } from "./deduplicate";
 import { rentalSources } from "./sources";
 import type { Rental, RentalFeed, SourceStatus } from "./types";
@@ -17,7 +18,7 @@ function cleanRental(rental: Rental, checkedAt: string): Rental {
     contactType: rental.contactType?.trim() || "Online",
     propertyType: rental.propertyType?.trim() || "Private rental",
     propertyManager,
-    contactName: rental.contactName?.trim() || propertyManager,
+    contactName: rental.contactName?.trim() || undefined,
     contactPhone: rental.contactPhone?.trim() || "See original listing",
     contactEmail: rental.contactEmail?.trim() || "See original listing",
     notes: rental.notes?.trim() || "Current online rental listing.",
@@ -75,7 +76,8 @@ export async function getRentalFeed(): Promise<RentalFeed> {
     };
   });
 
-  const rentals = deduplicateRentals(results.flatMap((result) => result.rentals)).sort(
+  const deduplicated = deduplicateRentals(results.flatMap((result) => result.rentals));
+  const rentals = (await enrichRentalContacts(deduplicated)).sort(
     (a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER),
   );
 
