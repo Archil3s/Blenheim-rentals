@@ -42,40 +42,79 @@ function DiaryRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+function RentalPhotos({ rental }: { rental: Rental }) {
+  const photos = rental.imageUrls?.length
+    ? rental.imageUrls
+    : rental.imageUrl
+      ? [rental.imageUrl]
+      : [];
+
+  if (photos.length === 0) {
+    return (
+      <div className="rental-photo-empty">
+        <span>🏠</span>
+        <div className="source-pill">{rental.source}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="photo-gallery" aria-label={`Photos of ${rental.address}`}>
+      {photos.map((photo, index) => (
+        <div className="photo-slide" key={`${photo}-${index}`}>
+          <img src={photo} alt={`${rental.address} photo ${index + 1}`} loading="lazy" />
+          {index === 0 && <div className="source-pill">{rental.source}</div>}
+          {photos.length > 1 && (
+            <span className="photo-count">
+              {index + 1}/{photos.length}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RentalCard({ rental }: { rental: Rental }) {
-  const rating =
-    rental.rating != null
-      ? `${"★".repeat(rental.rating)}${"☆".repeat(Math.max(0, 5 - rental.rating))}`
-      : "Not rated";
   const price = rental.rent ? `${money.format(rental.rent)}/wk` : "Rent TBC";
+  const featureLabels = [
+    rental.bedrooms != null ? `🛏 ${rental.bedrooms} bed${rental.bedrooms === 1 ? "" : "s"}` : "",
+    rental.bathrooms != null ? `🛁 ${rental.bathrooms} bath${rental.bathrooms === 1 ? "" : "s"}` : "",
+    rental.parking != null && rental.parking > 0 ? `🚗 ${rental.parking} parking` : "",
+    rental.propertyType && rental.propertyType !== "Private rental" ? rental.propertyType : "",
+    ...(rental.features ?? []),
+  ].filter(Boolean);
 
   return (
     <article className="rental-card">
-      <div
-        className="rental-image"
-        style={rental.imageUrl ? { backgroundImage: `url(${rental.imageUrl})` } : undefined}
-        aria-label={rental.imageUrl ? `Photo of ${rental.address}` : undefined}
-      >
-        {!rental.imageUrl && <span>🏠</span>}
-        <div className="source-pill">{rental.source}</div>
-      </div>
+      <RentalPhotos rental={rental} />
 
       <div className="rental-body">
         <div className="price-row">
           <strong>{price}</strong>
-          <span>{rental.suburb ?? rental.area ?? "Blenheim"}</span>
+          <span>{rental.suburb ?? rental.area ?? rental.region ?? "Rental"}</span>
         </div>
 
         <h2>{rental.address}</h2>
 
-        <div className="facts" aria-label="Property details">
-          <span>🛏 {rental.bedrooms ?? "–"} beds</span>
-          <span>🛁 {rental.bathrooms ?? "–"} baths</span>
+        {featureLabels.length > 0 && (
+          <div className="feature-scroll" aria-label="House features">
+            {featureLabels.map((feature) => (
+              <span className="feature-chip" key={feature}>
+                {feature}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="location-line">
+          <span>{rental.region ?? "Marlborough"}</span>
+          {rental.suburb && <span>· {rental.suburb}</span>}
         </div>
 
         <div className="manager-line">
           <span>Property manager</span>
-          <strong>{rental.propertyManager ?? rental.source}</strong>
+          <strong>{rental.contactName ?? rental.propertyManager ?? rental.source}</strong>
         </div>
 
         <details className="diary-details">
@@ -88,14 +127,10 @@ function RentalCard({ rental }: { rental: Rental }) {
               value={`${rental.propertyType ?? "Private rental"} · ${price}`}
             />
             <DiaryRow label="Property address" value={rental.address} />
-            <DiaryRow label="Property manager" value={rental.propertyManager ?? rental.source} />
             <DiaryRow label="Contact person" value={rental.contactName} />
             <DiaryRow label="Phone" value={rental.contactPhone} />
             <DiaryRow label="Email" value={rental.contactEmail} />
             <DiaryRow label="Notes" value={rental.notes} />
-            <DiaryRow label="Result" value={rental.outcome} />
-            <DiaryRow label="Follow-up action" value={rental.followUpAction} />
-            <DiaryRow label="Rating" value={rating} />
           </div>
         </details>
 
@@ -114,6 +149,7 @@ export function RentalsDashboard() {
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [minBeds, setMinBeds] = useState("0");
+  const [location, setLocation] = useState("all");
   const [selectedBands, setSelectedBands] = useState<string[]>(() =>
     RENT_PRICE_BANDS.map((band) => band.id),
   );
@@ -144,6 +180,17 @@ export function RentalsDashboard() {
     void load(false);
   }, [load]);
 
+  const suburbOptions = useMemo(() => {
+    const suburbs = new Set(
+      (data?.rentals ?? [])
+        .map((rental) => rental.suburb?.trim())
+        .filter((value): value is string => Boolean(value)),
+    );
+    suburbs.add("Blenheim Central");
+    suburbs.add("Nelson City");
+    return [...suburbs].sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
   const rentals = useMemo(() => {
     const query = search.trim().toLowerCase();
     const max = maxRent ? Number(maxRent) : Number.POSITIVE_INFINITY;
@@ -151,14 +198,24 @@ export function RentalsDashboard() {
 
     return [...(data?.rentals ?? [])]
       .filter((rental) => {
-        const searchable = `${rental.address} ${rental.suburb ?? ""} ${rental.area ?? ""} ${rental.propertyManager ?? ""} ${rental.contactName ?? ""}`.toLowerCase();
+        const searchable = `${rental.address} ${rental.suburb ?? ""} ${rental.area ?? ""} ${rental.region ?? ""} ${rental.propertyManager ?? ""} ${rental.contactName ?? ""}`.toLowerCase();
         const matchesSearch = !query || searchable.includes(query);
         const matchesRent = rental.rent == null || rental.rent <= max;
         const matchesBeds = rental.bedrooms == null || rental.bedrooms >= beds;
-        return matchesSearch && matchesRent && matchesBeds;
+
+        let matchesLocation = true;
+        if (location.startsWith("region:")) {
+          matchesLocation = (rental.region ?? "Marlborough").toLowerCase() === location.slice(7).toLowerCase();
+        } else if (location.startsWith("suburb:")) {
+          const wanted = location.slice(7).toLowerCase();
+          matchesLocation =
+            rental.suburb?.toLowerCase() === wanted || rental.address.toLowerCase().includes(wanted);
+        }
+
+        return matchesSearch && matchesRent && matchesBeds && matchesLocation;
       })
       .sort((a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER));
-  }, [data, search, maxRent, minBeds]);
+  }, [data, search, maxRent, minBeds, location]);
 
   const diaryBands = useMemo(() => priceBandCounts(rentals), [rentals]);
 
@@ -229,10 +286,10 @@ export function RentalsDashboard() {
       <header className="hero">
         <div className="hero-inner">
           <div>
-            <p className="eyebrow">TE WAIHARAKEKE · MARLBOROUGH</p>
-            <h1>Blenheim Rentals</h1>
+            <p className="eyebrow">MARLBOROUGH + NELSON</p>
+            <h1>Rental Finder</h1>
             <p className="hero-copy">
-              One clean view of current rentals, with housing-diary details and direct access to every major local rental source.
+              Current rentals across Marlborough and Nelson, with housing-diary details, photos, features and direct listing links.
             </p>
           </div>
 
@@ -269,8 +326,26 @@ export function RentalsDashboard() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="e.g. Springlands or Ana"
+              placeholder="e.g. Springlands, Nelson City or Ana"
             />
+          </label>
+
+          <label>
+            <span>Location</span>
+            <select value={location} onChange={(event) => setLocation(event.target.value)}>
+              <option value="all">All Marlborough + Nelson</option>
+              <optgroup label="Regions">
+                <option value="region:Marlborough">Marlborough</option>
+                <option value="region:Nelson">Nelson</option>
+              </optgroup>
+              <optgroup label="Suburbs / areas">
+                {suburbOptions.map((suburb) => (
+                  <option key={suburb} value={`suburb:${suburb}`}>
+                    {suburb}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
           </label>
 
           <label>
@@ -303,7 +378,7 @@ export function RentalsDashboard() {
             <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
             <h2>Choose the price bands to include</h2>
             <p>
-              Tick the weekly rent bands you want. Your search, maximum-rent and bedroom filters above also apply to the diary export.
+              Tick the weekly rent bands you want. The search, location, maximum-rent and bedroom filters above also apply to the diary export.
             </p>
 
             <div className="band-actions">
@@ -345,7 +420,7 @@ export function RentalsDashboard() {
             <div className="export-field-list">
               <strong>Fields filled automatically</strong>
               <span>
-                Date checked · Online · Private rental + price · Address · Advertised agent/property manager · Phone/email · Clickable listing link · Notes · Result/follow-up
+                Date checked · Online · Private rental + price · Address · Advertised agent/property manager · Phone/email · Clickable listing link · Notes
               </span>
             </div>
             <button
