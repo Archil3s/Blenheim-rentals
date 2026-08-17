@@ -30,16 +30,35 @@
   letter-spacing: 0.08em;
 }
 
+.band-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.band-actions button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: white;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.band-actions button:hover {
+  border-color: rgba(142, 0, 0, 0.32);
+}
+
 .price-band-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .price-band {
-  display: grid;
-  gap: 2px;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 11px;
@@ -47,22 +66,57 @@
   background: white;
 }
 
+.price-band-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.price-band-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #8e0000;
+  flex: 0 0 auto;
+}
+
+.price-band-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
 .price-band strong {
   font-size: 0.82rem;
 }
 
-.price-band span {
+.price-band span span,
+.price-band-copy > span {
   color: var(--muted);
   font-size: 0.72rem;
 }
 
 .price-band.has-results {
   border-color: rgba(31, 90, 61, 0.22);
+}
+
+.price-band.selected.has-results {
+  border-color: rgba(31, 90, 61, 0.4);
   background: var(--soft-green);
 }
 
-.price-band.empty {
-  opacity: 0.62;
+.price-band.selected:not(.has-results) {
+  background: #fff9f8;
+}
+
+.price-band.empty:not(.selected) {
+  opacity: 0.58;
+}
+
+.price-band:not(.selected) {
+  background: #f7f8f7;
 }
 
 .export-controls {
