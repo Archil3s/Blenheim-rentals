@@ -2,12 +2,16 @@ import { getRentalFeed } from "@/lib/rentals";
 import { getCachedFeed, setCachedFeed } from "@/lib/rentals/cache";
 import { enrichRentalContacts } from "@/lib/rentals/contact-enrichment";
 import { generateHousingDiary } from "@/lib/rentals/housing-diary";
+import type { Rental } from "@/lib/rentals/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function exportDate(value: string) {
-  const date = new Date(value);
+const MAX_EXPORT_RENTALS = 250;
+const MAX_CONTACT_ENRICHMENT = 20;
+
+function exportDate(value?: string) {
+  const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return "current";
   return new Intl.DateTimeFormat("en-NZ", {
     timeZone: "Pacific/Auckland",
@@ -19,42 +23,100 @@ function exportDate(value: string) {
     .replaceAll("/", "-");
 }
 
+function isRental(value: unknown): value is Rental {
+  if (!value || typeof value !== "object") return false;
+  const rental = value as Partial<Rental>;
+  return (
+    typeof rental.id === "string" &&
+    rental.id.length > 0 &&
+    typeof rental.address === "string" &&
+    rental.address.length > 0 &&
+    typeof rental.source === "string" &&
+    typeof rental.url === "string"
+  );
+}
+
+function needsContactLookup(rental: Rental) {
+  const name = rental.contactName?.trim().toLowerCase() ?? "";
+  const phone = rental.contactPhone?.trim().toLowerCase() ?? "";
+  const email = rental.contactEmail?.trim().toLowerCase() ?? "";
+  return (
+    !name ||
+    name === "website" ||
+    name === "oneroof" ||
+    !phone ||
+    phone === "see original listing" ||
+    !email ||
+    email === "see original listing"
+  );
+}
+
+async function boundedContactEnrichment(rentals: Rental[]) {
+  const candidates = rentals.filter(needsContactLookup).slice(0, MAX_CONTACT_ENRICHMENT);
+  if (candidates.length === 0) return rentals;
+
+  const enriched = await enrichRentalContacts(candidates);
+  const byId = new Map(enriched.map((rental) => [rental.id, rental]));
+  return rentals.map((rental) => byId.get(rental.id) ?? rental);
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       rentalIds?: string[];
+      rentals?: unknown[];
     };
 
-    const requestedIds = Array.isArray(body.rentalIds)
-      ? [...new Set(body.rentalIds.filter((id): id is string => typeof id === "string" && id.length > 0))]
+    const suppliedRentals = Array.isArray(body.rentals)
+      ? body.rentals.filter(isRental).slice(0, MAX_EXPORT_RENTALS)
       : [];
 
-    if (requestedIds.length === 0) {
-      return Response.json({ error: "No rentals are selected for the diary." }, { status: 400 });
-    }
+    let rentals: Rental[] = suppliedRentals;
+    let checkedAt = suppliedRentals.find((rental) => rental.checkedAt)?.checkedAt;
 
-    let feed = getCachedFeed(false)?.value;
-    if (!feed) {
-      feed = await getRentalFeed();
-      setCachedFeed(feed);
-    }
+    // Backwards-compatible fallback for older clients. New clients send the selected
+    // rental rows directly so Netlify does not have to rebuild the feed on a cold instance.
+    if (rentals.length === 0) {
+      const requestedIds = Array.isArray(body.rentalIds)
+        ? [
+            ...new Set(
+              body.rentalIds.filter(
+                (id): id is string => typeof id === "string" && id.length > 0,
+              ),
+            ),
+          ].slice(0, MAX_EXPORT_RENTALS)
+        : [];
 
-    const byId = new Map(feed.rentals.map((rental) => [rental.id, rental]));
-    const rentals = requestedIds.flatMap((id) => {
-      const rental = byId.get(id);
-      return rental ? [rental] : [];
-    });
+      if (requestedIds.length === 0) {
+        return Response.json({ error: "No rentals are selected for the diary." }, { status: 400 });
+      }
+
+      let feed = getCachedFeed(false)?.value;
+      if (!feed) {
+        feed = await getRentalFeed();
+        setCachedFeed(feed);
+      }
+
+      checkedAt = feed.checkedAt;
+      const byId = new Map(feed.rentals.map((rental) => [rental.id, rental]));
+      rentals = requestedIds.flatMap((id) => {
+        const rental = byId.get(id);
+        return rental ? [rental] : [];
+      });
+    }
 
     if (rentals.length === 0) {
       return Response.json(
-        { error: "Those rentals are no longer in the current feed. Refresh and try again." },
+        { error: "Those rentals are no longer available for export. Refresh and try again." },
         { status: 409 },
       );
     }
 
-    const enrichedRentals = await enrichRentalContacts(rentals);
+    // Contact lookup is deliberately bounded. A slow listing site should never prevent
+    // the actual diary document from being created.
+    const enrichedRentals = await boundedContactEnrichment(rentals);
     const diary = await generateHousingDiary("", enrichedRentals);
-    const filename = `Housing Search Diary - ${exportDate(feed.checkedAt)}.docx`;
+    const filename = `Housing Search Diary - ${exportDate(checkedAt)}.docx`;
 
     return new Response(diary, {
       headers: {
@@ -66,6 +128,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Housing diary export failed", error);
-    return Response.json({ error: "Could not create the housing diary" }, { status: 500 });
+    return Response.json(
+      { error: "Could not create the housing diary. Please try again." },
+      { status: 500 },
+    );
   }
 }
