@@ -11,18 +11,19 @@ The application includes:
 - responsive Blenheim rentals dashboard
 - `/api/rentals` Route Handler
 - live OneRoof HTTP adapter
+- live Ray White Blenheim HTTP adapter
 - Blenheim-area filtering
 - source adapter architecture
 - concurrent source fetching
 - per-source failure isolation
-- address-based deduplication
+- address-based cross-source deduplication
 - 3-minute in-memory cache
 - 30-second guard against repeated forced refreshes
 - search, maximum-rent and minimum-bedroom filters
 - source health/status display
 - optional demo adapter for development
 
-The Trade Me, realestate.co.nz, myRent, Summit and local-agency adapters remain placeholders.
+The Trade Me, realestate.co.nz, myRent, Summit and generic local-agency adapters remain placeholders. Some providers prohibit automated HTML scraping in their terms, so those sources should only be enabled through an approved API/feed or with provider permission.
 
 ## Phone-friendly data flow
 
@@ -39,7 +40,7 @@ plain HTTP source adapters
   ↓
 normalise
   ↓
-deduplicate
+deduplicate by address
   ↓
 JSON response
   ↓
@@ -50,17 +51,38 @@ The phone does not run a scraper, Chromium, Playwright, Node.js or a local helpe
 
 No rental listings are written to SQLite, Postgres, local files, browser storage, or another persistent database.
 
-## OneRoof source
+## Live sources
 
-`lib/rentals/sources/oneroof.ts` currently requests the public Marlborough rental result pages with server-side `fetch()`, extracts property links and visible listing text, and returns Blenheim-area rentals in the common `Rental` format.
+### OneRoof
 
-The adapter is enabled by default. Disable it with:
+`lib/rentals/sources/oneroof.ts` requests the Marlborough rental result pages with server-side `fetch()`, extracts property links and visible listing text, and returns Blenheim-area rentals in the common `Rental` format.
+
+Disable it with:
 
 ```env
 ONEROOF_ENABLED=false
 ```
 
-Automated retrieval can be affected by a provider changing its HTML, access controls, robots policy or terms. The adapter therefore remains isolated so it can be changed or disabled without affecting the rest of the application.
+### Ray White Blenheim
+
+`lib/rentals/sources/raywhite.ts` requests Ray White Blenheim's residential-for-rent page with ordinary server-side `fetch()`. It extracts the current residential listing URL, weekly rent, address, bedrooms and bathrooms, then returns the same common `Rental` format.
+
+Disable it with:
+
+```env
+RAYWHITE_ENABLED=false
+```
+
+Because both sources can advertise the same home, the feed deduplicates by normalised address before it reaches the dashboard.
+
+Automated retrieval can be affected by a provider changing its HTML, access controls, robots policy or terms. Each adapter therefore remains isolated so it can be changed or disabled without affecting the rest of the application.
+
+## Sources requiring a different access method
+
+- `realestate.co.nz` publishes an official signed Listings API. It requires an issued API key and secret; use that rather than scraping its website.
+- `myRent` currently prohibits automated screen/database scraping in its website terms.
+- `Summit` currently requires express approval to use/link its site material.
+- Trade Me should only be connected through an access method permitted by its current developer/data terms.
 
 ## Run locally
 
@@ -108,7 +130,7 @@ Keep source-specific parsing, credentials, selectors and error handling inside t
 
 ## Demo mode
 
-Demo listings are now disabled by default. To explicitly enable them for UI development:
+Demo listings are disabled by default. To explicitly enable them for UI development:
 
 ```env
 RENTALS_DEMO_MODE=true
@@ -116,14 +138,15 @@ RENTALS_DEMO_MODE=true
 
 ## Deploy
 
-The project is suitable for Vercel or another Node-compatible Next.js host.
+The project is suitable for Netlify, Vercel or another Node-compatible Next.js host.
 
-For Vercel:
+For Netlify:
 
-1. Import `Archil3s/Blenheim-rentals` into Vercel.
-2. Keep the framework preset as Next.js.
-3. Deploy with the default environment settings initially.
-4. Open `/api/rentals` on the deployed site and confirm the OneRoof source reports `ok: true` and returns listings.
-5. Then test the dashboard from your phone.
+1. Import `Archil3s/Blenheim-rentals` from GitHub.
+2. Let Netlify detect Next.js.
+3. Add the environment variables from `.env.example` if you want to override their defaults.
+4. Deploy.
+5. Open `/api/rentals` on the deployed site and confirm the live source statuses report `ok: true`.
+6. Test the dashboard and Refresh listings button from your phone.
 
 No database service is required.
