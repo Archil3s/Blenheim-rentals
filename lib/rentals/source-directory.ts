@@ -37,6 +37,12 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     note: "Live HTTP feed enabled with detail-page contact enrichment",
   },
   {
+    name: "Summit Property Management",
+    url: "https://summit.co.nz/rent/listings/",
+    access: "permission",
+    note: "OneRoof-style HTTP/detail-page adapter implemented; enable after provider approval",
+  },
+  {
     name: "realestate.co.nz",
     url: "https://www.realestate.co.nz/residential/rental/marlborough/marlborough",
     access: "api",
@@ -61,22 +67,16 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     note: "Provider terms restrict content reuse without authorisation",
   },
   {
-    name: "Summit Property Management",
-    url: "https://www.summit.co.nz/rent/listings/?_location=Blenheim+%28area%29&action_search=Search&location=area-1",
-    access: "permission",
-    note: "Permission/approved access needed for automated collection",
-  },
-  {
     name: "myRent",
-    url: "https://www.myrent.co.nz/",
+    url: "https://www.myrent.co.nz/rentals/blenheim",
     access: "permission",
-    note: "Automatic scraping disabled under current platform terms",
+    note: "Current terms prohibit screen/database scraping; kept as a direct cross-check",
   },
   {
     name: "Trade Me Property",
     url: "https://www.trademe.co.nz/a/property/residential/rent",
     access: "permission",
-    note: "Trade Me does not permit aggregation with other listing sites",
+    note: "Current developer rules prohibit combining Trade Me listings with other-site listings",
   },
   {
     name: "homes.co.nz",
