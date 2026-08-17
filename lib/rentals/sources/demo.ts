@@ -2,7 +2,7 @@ import type { RentalSourceAdapter } from "../types";
 
 export const demoSource: RentalSourceAdapter = {
   name: "Demo listings",
-  enabled: process.env.RENTALS_DEMO_MODE !== "false",
+  enabled: process.env.RENTALS_DEMO_MODE === "true",
   async fetchRentals() {
     return [
       {
