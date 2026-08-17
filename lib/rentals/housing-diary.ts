@@ -100,7 +100,7 @@ function rentalValues(rental?: Rental) {
     compact(rental.contactType) || "Online",
     `${compact(rental.propertyType) || "Private rental"}\n${money(rental.rent)}`,
     rental.address,
-    compact(rental.contactName) || compact(rental.propertyManager) || rental.source,
+    compact(rental.contactName) || "Contact person not published",
     "",
     listingNotes(rental),
     resultAndFollowUp(rental),
