@@ -157,7 +157,7 @@ async function fetchOneRoofPage(url: string): Promise<Rental[]> {
 
 export const oneRoofSource: RentalSourceAdapter = {
   name: "OneRoof",
-  enabled: process.env.ONEROOF_ENABLED !== "false",
+  enabled: process.env.ONEROOF_ENABLED === "true",
   async fetchRentals() {
     const settled = await Promise.allSettled(SEARCH_PAGES.map(fetchOneRoofPage));
     const rentals = settled.flatMap((result) =>
