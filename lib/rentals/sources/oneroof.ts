@@ -3,22 +3,9 @@ import type { Rental, RentalSourceAdapter } from "../types";
 const SEARCH_PAGES = [
   "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_1",
   "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_2",
+  "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_1",
+  "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_2",
 ];
-
-const BLENHEIM_AREAS = new Set([
-  "blenheim central",
-  "redwoodtown",
-  "witherlea",
-  "springlands",
-  "mayfield",
-  "burleigh",
-  "riverlands",
-  "grovetown",
-  "omaka",
-  "islington",
-  "fairhall",
-  "rarangi",
-]);
 
 const HTML_ENTITY_MAP: Record<string, string> = {
   "&amp;": "&",
@@ -61,10 +48,11 @@ function suburbFromAddress(address: string): string | undefined {
   return parts.length > 1 ? parts.at(-1) : undefined;
 }
 
-function isBlenheimArea(address: string): boolean {
-  const suburb = suburbFromAddress(address)?.toLowerCase();
-  if (!suburb) return /\bblenheim\b/i.test(address);
-  return BLENHEIM_AREAS.has(suburb) || /\bblenheim\b/i.test(suburb);
+function regionFromUrl(url: string): "Marlborough" | "Nelson" | null {
+  const pathname = new URL(url).pathname.toLowerCase();
+  if (pathname.includes("/property/marlborough/")) return "Marlborough";
+  if (pathname.includes("/property/nelson/")) return "Nelson";
+  return null;
 }
 
 function listingIdFromUrl(url: string): string {
@@ -74,6 +62,9 @@ function listingIdFromUrl(url: string): string {
 }
 
 function parseListingText(text: string, url: string): Rental | null {
+  const region = regionFromUrl(url);
+  if (!region) return null;
+
   const rentMatch = text.match(/\$\s?([\d,]+)\s*per\s*week/i);
   if (!rentMatch || rentMatch.index == null) return null;
 
@@ -93,7 +84,7 @@ function parseListingText(text: string, url: string): Rental | null {
   }
 
   const address = tokens.join(" ").replace(/\s+/g, " ").trim();
-  if (!address || !isBlenheimArea(address)) return null;
+  if (!address) return null;
 
   const sourceListingId = listingIdFromUrl(url);
   const suburb = suburbFromAddress(address);
@@ -102,10 +93,12 @@ function parseListingText(text: string, url: string): Rental | null {
     id: `oneroof:${sourceListingId}`,
     address,
     suburb,
-    area: "Blenheim",
+    area: region,
+    region,
     rent,
     bedrooms: trailingNumbers[0] ?? null,
     bathrooms: trailingNumbers[1] ?? null,
+    parking: trailingNumbers[2] ?? null,
     source: "OneRoof",
     sourceListingId,
     url,
@@ -120,7 +113,7 @@ export function parseOneRoofHtml(html: string): Rental[] {
   for (const match of html.matchAll(anchorPattern)) {
     const href = decodeHtml(match[2]);
     const url = absoluteUrl(href);
-    if (!url || !/\/property\/marlborough\//i.test(new URL(url).pathname)) {
+    if (!url || !/\/property\/(?:marlborough|nelson)\//i.test(new URL(url).pathname)) {
       continue;
     }
 
@@ -171,7 +164,7 @@ export const oneRoofSource: RentalSourceAdapter = {
       throw new Error(
         failures.length > 0
           ? failures.join("; ")
-          : "OneRoof returned no Blenheim listings",
+          : "OneRoof returned no Marlborough or Nelson listings",
       );
     }
 
