@@ -107,6 +107,9 @@ export function RentalsDashboard() {
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [minBeds, setMinBeds] = useState("0");
+  const [clientName, setClientName] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const load = useCallback(async (force = false) => {
     setLoading(true);
@@ -147,6 +150,47 @@ export function RentalsDashboard() {
       })
       .sort((a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER));
   }, [data, search, maxRent, minBeds]);
+
+  const diaryRentals = rentals.slice(0, 15);
+
+  const exportDiary = useCallback(async () => {
+    if (!clientName.trim() || diaryRentals.length === 0) return;
+
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      const response = await fetch("/api/housing-diary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: clientName.trim(),
+          rentalIds: diaryRentals.map((rental) => rental.id),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Could not create housing diary");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${clientName.trim()} - Housing Search Diary.docx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (exportFailure) {
+      setExportError(
+        exportFailure instanceof Error ? exportFailure.message : "Could not create housing diary",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }, [clientName, diaryRentals]);
 
   const configuredSources = data?.sources.filter((source) => source.configured) ?? [];
   const demoMode = configuredSources.some((source) => source.source === "Demo listings");
@@ -223,6 +267,41 @@ export function RentalsDashboard() {
               <option value="4">4+</option>
             </select>
           </label>
+        </section>
+
+        <section className="export-panel" aria-label="Housing diary export">
+          <div>
+            <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
+            <h2>Auto-fill the Word diary</h2>
+            <p>
+              Uses the current filters and fills up to 15 rows with the checked date, online source,
+              property type and price, address, property manager/contact details, notes and follow-up.
+            </p>
+          </div>
+          <div className="export-controls">
+            <label>
+              <span>Kaewa / client name</span>
+              <input
+                value={clientName}
+                onChange={(event) => setClientName(event.target.value)}
+                placeholder="Enter client name"
+                autoComplete="off"
+              />
+            </label>
+            <button
+              type="button"
+              className="export-button"
+              onClick={() => void exportDiary()}
+              disabled={exporting || !clientName.trim() || diaryRentals.length === 0}
+            >
+              {exporting ? "Creating Word diary…" : "Download populated diary"}
+            </button>
+            <span className="export-count">
+              {diaryRentals.length} of 15 diary rows will be filled
+              {rentals.length > 15 ? " · first 15 matching rentals" : ""}
+            </span>
+            {exportError && <span className="export-error">{exportError}</span>}
+          </div>
         </section>
 
         <div className="feed-heading">
