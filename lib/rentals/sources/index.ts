@@ -7,9 +7,11 @@ import {
   summitSource,
   tradeMeSource,
 } from "./placeholders";
+import { rayWhiteSource } from "./raywhite";
 
 export const rentalSources = [
   oneRoofSource,
+  rayWhiteSource,
   tradeMeSource,
   realestateSource,
   myRentSource,
