@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { rentalSourceDirectory } from "@/lib/rentals/source-directory";
 import type { Rental, RentalsResponse } from "@/lib/rentals/types";
 
 const money = new Intl.NumberFormat("en-NZ", {
@@ -18,6 +19,13 @@ function formatCheckedAt(value?: string) {
     day: "numeric",
     month: "short",
   }).format(new Date(value));
+}
+
+function accessLabel(access: "live" | "api" | "permission" | "manual") {
+  if (access === "live") return "LIVE";
+  if (access === "api") return "API";
+  if (access === "permission") return "PERMISSION";
+  return "OPEN SITE";
 }
 
 function RentalCard({ rental }: { rental: Rental }) {
@@ -74,9 +82,7 @@ export function RentalsDashboard() {
         cache: "no-store",
       });
 
-      if (!response.ok) {
-        throw new Error("Could not load rentals");
-      }
+      if (!response.ok) throw new Error("Could not load rentals");
 
       const payload = (await response.json()) as RentalsResponse;
       setData(payload);
@@ -118,7 +124,7 @@ export function RentalsDashboard() {
             <p className="eyebrow">TE WAIHARAKEKE · MARLBOROUGH</p>
             <h1>Blenheim Rentals</h1>
             <p className="hero-copy">
-              One clean view of the rentals available right now, without accounts or historical tracking.
+              One clean view of current rentals, plus direct access to every major local rental source.
             </p>
           </div>
 
@@ -143,7 +149,7 @@ export function RentalsDashboard() {
 
         {demoMode && (
           <div className="notice">
-            <strong>Demo mode is on.</strong> The pipeline and interface are working, but these are sample listings until a live source adapter is enabled.
+            <strong>Demo mode is on.</strong> Sample listings are being shown alongside configured sources.
           </div>
         )}
 
@@ -209,7 +215,7 @@ export function RentalsDashboard() {
         {data && (
           <section className="sources-panel">
             <div>
-              <h2>Sources</h2>
+              <h2>Automatic feeds</h2>
               <p>Each source is isolated so one failure does not break the whole feed.</p>
             </div>
             <div className="source-list">
@@ -217,12 +223,41 @@ export function RentalsDashboard() {
                 <div key={source.source} className="source-row">
                   <span className={`source-dot ${source.ok ? "ok" : source.configured ? "bad" : "off"}`} />
                   <strong>{source.source}</strong>
-                  <span>{source.configured ? `${source.count} found` : "not connected yet"}</span>
+                  <span>{source.configured ? `${source.count} found` : "not auto-connected"}</span>
                 </div>
               ))}
             </div>
           </section>
         )}
+
+        <section className="directory-panel">
+          <div className="directory-heading">
+            <div>
+              <h2>All rental sites</h2>
+              <p>Every major local source stays one tap away, including sites that require API access or permission.</p>
+            </div>
+            <span>{rentalSourceDirectory.length} sources</span>
+          </div>
+
+          <div className="directory-grid">
+            {rentalSourceDirectory.map((source) => (
+              <a
+                key={source.name}
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+                className="directory-card"
+              >
+                <div className="directory-card-top">
+                  <strong>{source.name}</strong>
+                  <span className={`access-pill ${source.access}`}>{accessLabel(source.access)}</span>
+                </div>
+                <p>{source.note}</p>
+                <span className="directory-link">Open rentals ↗</span>
+              </a>
+            ))}
+          </div>
+        </section>
       </section>
     </main>
   );
