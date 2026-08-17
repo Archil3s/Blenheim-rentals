@@ -2,6 +2,7 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  ExternalHyperlink,
   HeightRule,
   Packer,
   PageBreak,
@@ -23,6 +24,7 @@ import type { Rental } from "./types";
 const PAGE_WIDTH = 11906;
 const PAGE_HEIGHT = 16838;
 const PAGE_MARGIN = 720;
+const ROWS_PER_PAGE = 7;
 const COLUMN_WIDTHS = [1129, 1560, 1984, 2299, 1744, 1744, 3002, 1701];
 const TABLE_WIDTH = COLUMN_WIDTHS.reduce((sum, width) => sum + width, 0);
 const HEADER_FILL = "8E0000";
@@ -72,13 +74,6 @@ function money(rent: number | null) {
   return rent == null ? "Rent TBC" : `$${Math.round(rent)} pw`;
 }
 
-function contactDetails(rental: Rental) {
-  const values = [compact(rental.contactPhone), compact(rental.contactEmail)].filter(
-    (value) => value && value.toLowerCase() !== "see original listing",
-  );
-  return values.length ? values.join("\n") : "See original listing";
-}
-
 function listingNotes(rental: Rental) {
   const band = rentPriceBandFor(rental.rent);
   const values = [
@@ -106,7 +101,7 @@ function rentalValues(rental?: Rental) {
     `${compact(rental.propertyType) || "Private rental"}\n${money(rental.rent)}`,
     rental.address,
     compact(rental.contactName) || compact(rental.propertyManager) || rental.source,
-    contactDetails(rental),
+    "",
     listingNotes(rental),
     resultAndFollowUp(rental),
   ];
@@ -137,14 +132,69 @@ function tableCell(value: string, index: number, header = false) {
     borders: BORDERS,
     margins: { top: 70, bottom: 70, left: 80, right: 80 },
     verticalAlign: VerticalAlign.TOP,
-    ...(header
-      ? { shading: { fill: HEADER_FILL, type: ShadingType.CLEAR } }
-      : {}),
+    ...(header ? { shading: { fill: HEADER_FILL, type: ShadingType.CLEAR } } : {}),
     children: cellParagraphs(value, {
       bold: header,
       color: header ? "FFFFFF" : "000000",
       size: header ? 18 : 16,
     }),
+  });
+}
+
+function hyperlinkParagraph(text: string, link: string) {
+  return new Paragraph({
+    spacing: { after: 0, before: 0 },
+    children: [
+      new ExternalHyperlink({
+        link,
+        children: [
+          new TextRun({
+            text,
+            style: "Hyperlink",
+            size: 16,
+            font: "Arial",
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+function phoneLink(phone: string) {
+  const target = phone.replace(/[^+\d]/g, "");
+  return target ? `tel:${target}` : "";
+}
+
+function contactCell(rental: Rental) {
+  const phone = compact(rental.contactPhone);
+  const email = compact(rental.contactEmail);
+  const usefulPhone = phone && phone.toLowerCase() !== "see original listing" ? phone : "";
+  const usefulEmail = email && email.toLowerCase() !== "see original listing" ? email : "";
+  const children: Paragraph[] = [];
+
+  if (usefulPhone) {
+    const link = phoneLink(usefulPhone);
+    children.push(link ? hyperlinkParagraph(usefulPhone, link) : ...cellParagraphs(usefulPhone));
+  }
+
+  if (usefulEmail) {
+    children.push(hyperlinkParagraph(usefulEmail, `mailto:${usefulEmail}`));
+  }
+
+  if (!usefulPhone && !usefulEmail) {
+    children.push(...cellParagraphs("Contact details not published"));
+  }
+
+  if (rental.url) {
+    children.push(hyperlinkParagraph("Open listing", rental.url));
+  }
+
+  return new TableCell({
+    width: { size: COLUMN_WIDTHS[5], type: WidthType.DXA },
+    borders: BORDERS,
+    margins: { top: 70, bottom: 70, left: 80, right: 80 },
+    verticalAlign: VerticalAlign.TOP,
+    children,
   });
 }
 
@@ -159,7 +209,9 @@ function dataRow(rental?: Rental) {
   const values = rentalValues(rental);
   return new TableRow({
     height: { value: 850, rule: HeightRule.ATLEAST },
-    children: values.map((value, index) => tableCell(value, index, false)),
+    children: values.map((value, index) =>
+      index === 5 && rental ? contactCell(rental) : tableCell(value, index, false),
+    ),
   });
 }
 
@@ -195,9 +247,7 @@ function pageHeading(clientName: string) {
     }),
     new Paragraph({
       spacing: { after: 55 },
-      children: [
-        new TextRun({ text: "____________________________", color: HEADING_RED, size: 18 }),
-      ],
+      children: [new TextRun({ text: "____________________________", color: HEADING_RED, size: 18 })],
     }),
     new Paragraph({
       spacing: { after: 95 },
@@ -211,12 +261,7 @@ function pageHeading(clientName: string) {
         new TextRun({ text: " or call ", font: "Arial", size: 20 }),
         new TextRun({ text: "0800432 536", color: "4472C4", font: "Arial", size: 20 }),
         new TextRun({ text: "or via email: ", font: "Arial", size: 20 }),
-        new TextRun({
-          text: "[Daniel.dutoit@mmsi.org,nz]",
-          color: "4472C4",
-          font: "Arial",
-          size: 20,
-        }),
+        new TextRun({ text: "[Daniel.dutoit@mmsi.org,nz]", color: "4472C4", font: "Arial", size: 20 }),
         new TextRun({
           text: ". Failing to do so is failing to meet EH/TH obligations to CMM and WINZ.",
           font: "Arial",
@@ -227,22 +272,25 @@ function pageHeading(clientName: string) {
   ];
 }
 
-function blankRentalSlots(rentals: Rental[], start: number, count: number) {
-  return Array.from({ length: count }, (_, index) => rentals[start + index]);
+function chunks<T>(values: T[], size: number) {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
 }
 
 export async function generateHousingDiary(clientName: string, rentals: Rental[]) {
-  const selected = rentals.slice(0, 15);
-  const children = [
-    ...pageHeading(clientName),
-    diaryTable(blankRentalSlots(selected, 0, 7), LONG_HEADERS),
-    new Paragraph({ children: [new PageBreak()] }),
-    ...pageHeading(clientName),
-    diaryTable(blankRentalSlots(selected, 7, 7), SHORT_HEADERS),
-    new Paragraph({ children: [new PageBreak()] }),
-    ...pageHeading(clientName),
-    diaryTable(blankRentalSlots(selected, 14, 1), SHORT_HEADERS),
-  ];
+  const pages = chunks(rentals, ROWS_PER_PAGE);
+  const children: Array<Paragraph | Table> = [];
+
+  pages.forEach((pageRentals, pageIndex) => {
+    if (pageIndex > 0) {
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+    children.push(...pageHeading(clientName));
+    children.push(diaryTable(pageRentals, pageIndex === 0 ? LONG_HEADERS : SHORT_HEADERS));
+  });
 
   const document = new Document({
     styles: {
