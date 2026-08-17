@@ -8,12 +8,12 @@ import {
   myRentSource,
   propertyBrokersSource,
   realestateSource,
-  summitSource,
   tradeMeSource,
 } from "./placeholders";
 import { quinovicSource } from "./quinovic";
 import { rayWhiteCompleteSource } from "./raywhite-complete";
 import { rayWhiteSource } from "./raywhite";
+import { summitSource } from "./summit";
 
 export const rentalSources = [
   oneRoofSource,
@@ -21,11 +21,11 @@ export const rentalSources = [
   rayWhiteCompleteSource,
   bnPropertiesSource,
   quinovicSource,
+  summitSource,
   realestateSource,
   bayleysSource,
   harcourtsSource,
   propertyBrokersSource,
-  summitSource,
   myRentSource,
   homesSource,
   tradeMeSource,
