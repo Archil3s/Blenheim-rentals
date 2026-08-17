@@ -10,8 +10,8 @@ The application includes:
 
 - responsive Blenheim rentals dashboard
 - `/api/rentals` Route Handler
-- live OneRoof HTTP adapter
-- live Ray White Blenheim HTTP adapter
+- live Ray White Blenheim HTTP adapter enabled by default
+- OneRoof adapter retained but disabled by default
 - Blenheim-area filtering
 - source adapter architecture
 - concurrent source fetching
@@ -23,7 +23,7 @@ The application includes:
 - source health/status display
 - optional demo adapter for development
 
-The Trade Me, realestate.co.nz, myRent, Summit and generic local-agency adapters remain placeholders. Some providers prohibit automated HTML scraping in their terms, so those sources should only be enabled through an approved API/feed or with provider permission.
+The Trade Me, realestate.co.nz, myRent, Summit and generic local-agency adapters remain placeholders. Providers that prohibit automated HTML collection should only be connected through an approved API/feed or with provider permission.
 
 ## Phone-friendly data flow
 
@@ -53,35 +53,34 @@ No rental listings are written to SQLite, Postgres, local files, browser storage
 
 ## Live sources
 
-### OneRoof
-
-`lib/rentals/sources/oneroof.ts` requests the Marlborough rental result pages with server-side `fetch()`, extracts property links and visible listing text, and returns Blenheim-area rentals in the common `Rental` format.
-
-Disable it with:
-
-```env
-ONEROOF_ENABLED=false
-```
-
 ### Ray White Blenheim
 
-`lib/rentals/sources/raywhite.ts` requests Ray White Blenheim's residential-for-rent page with ordinary server-side `fetch()`. It extracts the current residential listing URL, weekly rent, address, bedrooms and bathrooms, then returns the same common `Rental` format.
+`lib/rentals/sources/raywhite.ts` requests Ray White Blenheim's residential-for-rent page with ordinary server-side `fetch()`. It extracts the current residential listing URL, weekly rent, address, bedrooms and bathrooms, then returns the common `Rental` format.
 
-Disable it with:
+It is enabled by default. Disable it with:
 
 ```env
 RAYWHITE_ENABLED=false
 ```
 
-Because both sources can advertise the same home, the feed deduplicates by normalised address before it reaches the dashboard.
+### OneRoof
 
-Automated retrieval can be affected by a provider changing its HTML, access controls, robots policy or terms. Each adapter therefore remains isolated so it can be changed or disabled without affecting the rest of the application.
+`lib/rentals/sources/oneroof.ts` contains the earlier HTTP parser, but OneRoof's current user terms prohibit software-based scraping/copying of platform data. The adapter is therefore **disabled by default** and should only be enabled if an approved access route or permission is obtained.
+
+```env
+ONEROOF_ENABLED=false
+```
+
+The feed deduplicates listings by normalised address when multiple permitted sources are enabled.
+
+Automated retrieval can be affected by a provider changing its HTML, access controls, robots policy or terms. Each adapter remains isolated so it can be changed or disabled without affecting the rest of the application.
 
 ## Sources requiring a different access method
 
 - `realestate.co.nz` publishes an official signed Listings API. It requires an issued API key and secret; use that rather than scraping its website.
 - `myRent` currently prohibits automated screen/database scraping in its website terms.
 - `Summit` currently requires express approval to use/link its site material.
+- `OneRoof` currently prohibits software-based scraping/copying of platform data.
 - Trade Me should only be connected through an access method permitted by its current developer/data terms.
 
 ## Run locally
@@ -146,7 +145,7 @@ For Netlify:
 2. Let Netlify detect Next.js.
 3. Add the environment variables from `.env.example` if you want to override their defaults.
 4. Deploy.
-5. Open `/api/rentals` on the deployed site and confirm the live source statuses report `ok: true`.
+5. Open `/api/rentals` on the deployed site and confirm `Ray White Blenheim` reports `ok: true`.
 6. Test the dashboard and Refresh listings button from your phone.
 
 No database service is required.
