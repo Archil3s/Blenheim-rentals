@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { priceBandCounts, selectDiaryRentalsByPriceBand } from "@/lib/rentals/price-bands";
+import {
+  priceBandCounts,
+  RENT_PRICE_BANDS,
+  rentPriceBandFor,
+} from "@/lib/rentals/price-bands";
 import { rentalSourceDirectory } from "@/lib/rentals/source-directory";
 import type { Rental, RentalsResponse } from "@/lib/rentals/types";
 
@@ -39,7 +43,10 @@ function DiaryRow({ label, value }: { label: string; value?: string | null }) {
 }
 
 function RentalCard({ rental }: { rental: Rental }) {
-  const rating = rental.rating != null ? `${"★".repeat(rental.rating)}${"☆".repeat(Math.max(0, 5 - rental.rating))}` : "Not rated";
+  const rating =
+    rental.rating != null
+      ? `${"★".repeat(rental.rating)}${"☆".repeat(Math.max(0, 5 - rental.rating))}`
+      : "Not rated";
   const price = rental.rent ? `${money.format(rental.rent)}/wk` : "Rent TBC";
 
   return (
@@ -76,7 +83,10 @@ function RentalCard({ rental }: { rental: Rental }) {
           <div className="diary-grid">
             <DiaryRow label="Checked" value={formatCheckedAt(rental.checkedAt)} />
             <DiaryRow label="Contact type / how found" value={rental.contactType} />
-            <DiaryRow label="Property type / price" value={`${rental.propertyType ?? "Private rental"} · ${price}`} />
+            <DiaryRow
+              label="Property type / price"
+              value={`${rental.propertyType ?? "Private rental"} · ${price}`}
+            />
             <DiaryRow label="Property address" value={rental.address} />
             <DiaryRow label="Property manager" value={rental.propertyManager ?? rental.source} />
             <DiaryRow label="Contact person" value={rental.contactName} />
@@ -104,6 +114,9 @@ export function RentalsDashboard() {
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [minBeds, setMinBeds] = useState("0");
+  const [selectedBands, setSelectedBands] = useState<string[]>(() =>
+    RENT_PRICE_BANDS.map((band) => band.id),
+  );
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -147,13 +160,28 @@ export function RentalsDashboard() {
       .sort((a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER));
   }, [data, search, maxRent, minBeds]);
 
-  const diaryRentals = useMemo(
-    () => selectDiaryRentalsByPriceBand(data?.rentals ?? [], 15),
-    [data],
-  );
+  const diaryBands = useMemo(() => priceBandCounts(rentals), [rentals]);
 
-  const diaryBands = useMemo(() => priceBandCounts(data?.rentals ?? []), [data]);
-  const representedBands = diaryBands.filter((band) => band.count > 0).length;
+  const diaryRentals = useMemo(() => {
+    const selected = new Set(selectedBands);
+    return rentals.filter((rental) => {
+      const band = rentPriceBandFor(rental.rent);
+      return band ? selected.has(band.id) : false;
+    });
+  }, [rentals, selectedBands]);
+
+  const diaryPages = Math.ceil(diaryRentals.length / 7);
+  const representedBands = diaryBands.filter(
+    (band) => band.count > 0 && selectedBands.includes(band.id),
+  ).length;
+
+  const toggleBand = useCallback((bandId: string) => {
+    setSelectedBands((current) =>
+      current.includes(bandId)
+        ? current.filter((id) => id !== bandId)
+        : [...current, bandId],
+    );
+  }, []);
 
   const exportDiary = useCallback(async () => {
     if (diaryRentals.length === 0) return;
@@ -164,6 +192,10 @@ export function RentalsDashboard() {
     try {
       const response = await fetch("/api/housing-diary", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rentalIds: diaryRentals.map((rental) => rental.id),
+        }),
       });
 
       if (!response.ok) {
@@ -269,24 +301,52 @@ export function RentalsDashboard() {
         <section className="export-panel" aria-label="Housing diary export">
           <div>
             <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
-            <h2>Auto-fill by weekly rent band</h2>
+            <h2>Choose the price bands to include</h2>
             <p>
-              Uses the live rental feed and spreads diary entries across your price points instead of requiring a client name.
-              The client-name line stays blank for you to complete later if needed.
+              Tick the weekly rent bands you want. Your search, maximum-rent and bedroom filters above also apply to the diary export.
             </p>
-            <div className="price-band-grid" aria-label="Rental price bands">
-              {diaryBands.map((band) => (
-                <div key={band.id} className={`price-band ${band.count ? "has-results" : "empty"}`}>
-                  <strong>{band.label}</strong>
-                  <span>{band.count} found</span>
-                </div>
-              ))}
+
+            <div className="band-actions">
+              <button
+                type="button"
+                onClick={() => setSelectedBands(RENT_PRICE_BANDS.map((band) => band.id))}
+              >
+                Select all
+              </button>
+              <button type="button" onClick={() => setSelectedBands([])}>
+                Clear all
+              </button>
+            </div>
+
+            <div className="price-band-grid" aria-label="Rental price-band filters">
+              {diaryBands.map((band) => {
+                const checked = selectedBands.includes(band.id);
+                return (
+                  <label
+                    key={band.id}
+                    className={`price-band price-band-check ${checked ? "selected" : ""} ${band.count ? "has-results" : "empty"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleBand(band.id)}
+                    />
+                    <span className="price-band-copy">
+                      <strong>{band.label}</strong>
+                      <span>{band.count} found</span>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
+
           <div className="export-controls">
             <div className="export-field-list">
               <strong>Fields filled automatically</strong>
-              <span>Date checked · Online · Private rental + price · Address · Contact person/manager · Phone/email · Notes · Result/follow-up</span>
+              <span>
+                Date checked · Online · Private rental + price · Address · Advertised agent/property manager · Phone/email · Clickable listing link · Notes · Result/follow-up
+              </span>
             </div>
             <button
               type="button"
@@ -294,10 +354,12 @@ export function RentalsDashboard() {
               onClick={() => void exportDiary()}
               disabled={exporting || diaryRentals.length === 0}
             >
-              {exporting ? "Creating Word diary…" : "Download populated diary"}
+              {exporting
+                ? "Reading listings & creating diary…"
+                : `Download ${diaryRentals.length || ""} matching listings`}
             </button>
             <span className="export-count">
-              {diaryRentals.length} of 15 diary rows will be filled · {representedBands} of 9 price bands currently represented
+              {diaryRentals.length} listings selected · {diaryPages} Word {diaryPages === 1 ? "page" : "pages"} · {representedBands} price bands represented
             </span>
             {exportError && <span className="export-error">{exportError}</span>}
           </div>
@@ -334,7 +396,9 @@ export function RentalsDashboard() {
             <div className="source-list">
               {data.sources.map((source) => (
                 <div key={source.source} className="source-row">
-                  <span className={`source-dot ${source.ok ? "ok" : source.configured ? "bad" : "off"}`} />
+                  <span
+                    className={`source-dot ${source.ok ? "ok" : source.configured ? "bad" : "off"}`}
+                  />
                   <strong>{source.source}</strong>
                   <span>{source.configured ? `${source.count} found` : "not auto-connected"}</span>
                 </div>
@@ -347,7 +411,9 @@ export function RentalsDashboard() {
           <div className="directory-heading">
             <div>
               <h2>All rental sites</h2>
-              <p>Every major local source stays one tap away, including sites that require API access or permission.</p>
+              <p>
+                Every major local source stays one tap away, including sites that require API access or permission.
+              </p>
             </div>
             <span>{rentalSourceDirectory.length} sources</span>
           </div>
