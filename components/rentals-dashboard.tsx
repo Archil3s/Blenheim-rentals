@@ -1,0 +1,229 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Rental, RentalsResponse } from "@/lib/rentals/types";
+
+const money = new Intl.NumberFormat("en-NZ", {
+  style: "currency",
+  currency: "NZD",
+  maximumFractionDigits: 0,
+});
+
+function formatCheckedAt(value?: string) {
+  if (!value) return "Not checked yet";
+
+  return new Intl.DateTimeFormat("en-NZ", {
+    hour: "numeric",
+    minute: "2-digit",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(value));
+}
+
+function RentalCard({ rental }: { rental: Rental }) {
+  return (
+    <article className="rental-card">
+      <div
+        className="rental-image"
+        style={
+          rental.imageUrl
+            ? { backgroundImage: `url(${rental.imageUrl})` }
+            : undefined
+        }
+        aria-label={rental.imageUrl ? `Photo of ${rental.address}` : undefined}
+      >
+        {!rental.imageUrl && <span>🏠</span>}
+        <div className="source-pill">{rental.source}</div>
+      </div>
+
+      <div className="rental-body">
+        <div className="price-row">
+          <strong>{rental.rent ? `${money.format(rental.rent)}/wk` : "Rent TBC"}</strong>
+          <span>{rental.suburb ?? rental.area ?? "Blenheim"}</span>
+        </div>
+
+        <h2>{rental.address}</h2>
+
+        <div className="facts" aria-label="Property details">
+          <span>🛏 {rental.bedrooms ?? "–"} beds</span>
+          <span>🛁 {rental.bathrooms ?? "–"} baths</span>
+        </div>
+
+        <a href={rental.url} target="_blank" rel="noreferrer" className="listing-link">
+          View original listing ↗
+        </a>
+      </div>
+    </article>
+  );
+}
+
+export function RentalsDashboard() {
+  const [data, setData] = useState<RentalsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [maxRent, setMaxRent] = useState("");
+  const [minBeds, setMinBeds] = useState("0");
+
+  const load = useCallback(async (force = false) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/rentals${force ? "?refresh=1" : ""}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load rentals");
+      }
+
+      const payload = (await response.json()) as RentalsResponse;
+      setData(payload);
+    } catch {
+      setError("The rental feed could not be refreshed. Try again shortly.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load(false);
+  }, [load]);
+
+  const rentals = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const max = maxRent ? Number(maxRent) : Number.POSITIVE_INFINITY;
+    const beds = Number(minBeds);
+
+    return [...(data?.rentals ?? [])]
+      .filter((rental) => {
+        const searchable = `${rental.address} ${rental.suburb ?? ""} ${rental.area ?? ""}`.toLowerCase();
+        const matchesSearch = !query || searchable.includes(query);
+        const matchesRent = rental.rent == null || rental.rent <= max;
+        const matchesBeds = rental.bedrooms == null || rental.bedrooms >= beds;
+        return matchesSearch && matchesRent && matchesBeds;
+      })
+      .sort((a, b) => (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER));
+  }, [data, search, maxRent, minBeds]);
+
+  const configuredSources = data?.sources.filter((source) => source.configured) ?? [];
+  const demoMode = configuredSources.some((source) => source.source === "Demo listings");
+
+  return (
+    <main>
+      <header className="hero">
+        <div className="hero-inner">
+          <div>
+            <p className="eyebrow">TE WAIHARAKEKE · MARLBOROUGH</p>
+            <h1>Blenheim Rentals</h1>
+            <p className="hero-copy">
+              One clean view of the rentals available right now, without accounts or historical tracking.
+            </p>
+          </div>
+
+          <button className="refresh-button" onClick={() => void load(true)} disabled={loading}>
+            <span className={loading ? "spin" : ""}>↻</span>
+            {loading ? "Checking…" : "Refresh listings"}
+          </button>
+        </div>
+      </header>
+
+      <section className="shell">
+        <div className="status-bar">
+          <div>
+            <strong>{data?.total ?? 0}</strong>
+            <span> current rentals</span>
+          </div>
+          <div className="status-meta">
+            <span>Last checked: {formatCheckedAt(data?.checkedAt)}</span>
+            {data?.fromCache && <span className="cache-pill">RAM cache</span>}
+          </div>
+        </div>
+
+        {demoMode && (
+          <div className="notice">
+            <strong>Demo mode is on.</strong> The pipeline and interface are working, but these are sample listings until a live source adapter is enabled.
+          </div>
+        )}
+
+        {error && <div className="error-banner">{error}</div>}
+
+        <section className="filters" aria-label="Rental filters">
+          <label>
+            <span>Search area or address</span>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="e.g. Springlands"
+            />
+          </label>
+
+          <label>
+            <span>Maximum weekly rent</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="10"
+              value={maxRent}
+              onChange={(event) => setMaxRent(event.target.value)}
+              placeholder="Any"
+            />
+          </label>
+
+          <label>
+            <span>Minimum bedrooms</span>
+            <select value={minBeds} onChange={(event) => setMinBeds(event.target.value)}>
+              <option value="0">Any</option>
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="3">3+</option>
+              <option value="4">4+</option>
+            </select>
+          </label>
+        </section>
+
+        <div className="feed-heading">
+          <div>
+            <h2>Available homes</h2>
+            <p>{rentals.length} matching your filters</p>
+          </div>
+        </div>
+
+        {loading && !data ? (
+          <div className="empty-state">Checking current listings…</div>
+        ) : rentals.length ? (
+          <section className="rental-grid">
+            {rentals.map((rental) => (
+              <RentalCard key={rental.id} rental={rental} />
+            ))}
+          </section>
+        ) : (
+          <div className="empty-state">
+            <strong>No matching rentals.</strong>
+            <span>Try widening the filters or refresh the feed.</span>
+          </div>
+        )}
+
+        {data && (
+          <section className="sources-panel">
+            <div>
+              <h2>Sources</h2>
+              <p>Each source is isolated so one failure does not break the whole feed.</p>
+            </div>
+            <div className="source-list">
+              {data.sources.map((source) => (
+                <div key={source.source} className="source-row">
+                  <span className={`source-dot ${source.ok ? "ok" : source.configured ? "bad" : "off"}`} />
+                  <strong>{source.source}</strong>
+                  <span>{source.configured ? `${source.count} found` : "not connected yet"}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </section>
+    </main>
+  );
+}

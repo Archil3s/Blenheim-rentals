@@ -1,0 +1,19 @@
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Blenheim Rentals",
+  description: "A lightweight live view of current Blenheim rental listings.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en-NZ">
+      <body>{children}</body>
+    </html>
+  );
+}
