@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { IphoneInstallPrompt } from "@/components/iphone-install-prompt";
 import "./globals.css";
 import "./sources.css";
 import "./export.css";
 import "./rental-enhancements.css";
+import "./install-prompt.css";
 
 export const metadata: Metadata = {
   title: "Marlborough + Nelson Rentals",
@@ -28,7 +30,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-NZ">
-      <body>{children}</body>
+      <body>
+        {children}
+        <IphoneInstallPrompt />
+      </body>
     </html>
   );
 }
