@@ -25,6 +25,12 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     note: "Live HTTP feed enabled",
   },
   {
+    name: "Quinovic Blenheim",
+    url: "https://www.quinovic.co.nz/for-rent/marlborough/",
+    access: "live",
+    note: "Live HTTP feed enabled with detail-page contact enrichment",
+  },
+  {
     name: "realestate.co.nz",
     url: "https://www.realestate.co.nz/residential/rental/marlborough/marlborough",
     access: "api",
@@ -32,9 +38,9 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
   },
   {
     name: "Bayleys Marlborough",
-    url: "https://www.bayleys.co.nz/",
+    url: "https://marlborough.bayleys.co.nz/propertyservices/residential-property-management",
     access: "manual",
-    note: "Open provider site; automatic feed not enabled",
+    note: "Detail pages expose manager/contact data; automatic discovery adapter next",
   },
   {
     name: "Harcourts Blenheim",
@@ -49,12 +55,6 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     note: "Provider terms restrict content reuse without authorisation",
   },
   {
-    name: "Quinovic Blenheim",
-    url: "https://www.quinovic.co.nz/blenheim/",
-    access: "manual",
-    note: "Local property manager; open current site",
-  },
-  {
     name: "Summit Property Management",
     url: "https://www.summit.co.nz/rent/listings/?_location=Blenheim+%28area%29&action_search=Search&location=area-1",
     access: "permission",
@@ -64,7 +64,7 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     name: "OneRoof",
     url: "https://www.oneroof.co.nz/search/houses-for-rent/district_marlborough-marlborough-270_page_1",
     access: "permission",
-    note: "Automatic collection disabled under current platform terms",
+    note: "Technical adapter exists but automatic collection is disabled under current platform terms",
   },
   {
     name: "myRent",
