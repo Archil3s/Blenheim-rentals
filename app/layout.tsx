@@ -4,11 +4,13 @@ import "./globals.css";
 import "./sources.css";
 import "./export.css";
 import "./rental-enhancements.css";
+import "./regions.css";
 import "./install-prompt.css";
 
 export const metadata: Metadata = {
-  title: "Marlborough + Nelson Rentals",
-  description: "A lightweight live view of current Marlborough and Nelson rental listings.",
+  title: "Marlborough, Nelson, Kaikōura + Christchurch Rentals",
+  description:
+    "A lightweight live view of current Marlborough, Nelson, Kaikōura and Christchurch rental listings.",
   applicationName: "Rental Finder",
   appleWebApp: {
     capable: true,
