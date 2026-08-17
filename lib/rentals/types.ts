@@ -10,6 +10,19 @@ export type Rental = {
   source: string;
   sourceListingId?: string;
   url: string;
+
+  // Housing-search diary fields. checkedAt is stamped by the aggregator on refresh.
+  checkedAt?: string;
+  contactType?: string;
+  propertyType?: string;
+  propertyManager?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  notes?: string;
+  outcome?: string;
+  followUpAction?: string;
+  rating?: number | null;
 };
 
 export type SourceStatus = {
