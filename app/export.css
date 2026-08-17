@@ -1,6 +1,6 @@
 .export-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
   gap: 26px;
   margin: 4px 0 30px;
   border: 1px solid rgba(142, 0, 0, 0.18);
@@ -16,7 +16,7 @@
 }
 
 .export-panel p {
-  max-width: 650px;
+  max-width: 700px;
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
@@ -30,37 +30,64 @@
   letter-spacing: 0.08em;
 }
 
+.price-band-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.price-band {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 9px 10px;
+  background: white;
+}
+
+.price-band strong {
+  font-size: 0.82rem;
+}
+
+.price-band span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.price-band.has-results {
+  border-color: rgba(31, 90, 61, 0.22);
+  background: var(--soft-green);
+}
+
+.price-band.empty {
+  opacity: 0.62;
+}
+
 .export-controls {
   display: grid;
   align-content: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.export-controls label {
+.export-field-list {
   display: grid;
-  gap: 7px;
-}
-
-.export-controls label span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.export-controls input {
-  width: 100%;
-  min-height: 46px;
+  gap: 5px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 0 12px;
-  color: var(--ink);
-  background: white;
-  outline: none;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
-.export-controls input:focus {
-  border-color: #8e0000;
-  box-shadow: 0 0 0 3px rgba(142, 0, 0, 0.08);
+.export-field-list strong {
+  font-size: 0.78rem;
+}
+
+.export-field-list span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .export-button {
@@ -99,5 +126,11 @@
     grid-template-columns: 1fr;
     gap: 18px;
     padding: 16px;
+  }
+}
+
+@media (max-width: 520px) {
+  .price-band-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
