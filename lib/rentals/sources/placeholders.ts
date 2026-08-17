@@ -19,5 +19,4 @@ export const summitSource = placeholder("Summit Real Estate");
 export const bayleysSource = placeholder("Bayleys Marlborough");
 export const harcourtsSource = placeholder("Harcourts Blenheim");
 export const propertyBrokersSource = placeholder("Property Brokers Blenheim");
-export const quinovicSource = placeholder("Quinovic Blenheim");
 export const homesSource = placeholder("homes.co.nz");
