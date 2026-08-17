@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./sources.css";
+import "./export.css";
 
 export const metadata: Metadata = {
   title: "Blenheim Rentals",
