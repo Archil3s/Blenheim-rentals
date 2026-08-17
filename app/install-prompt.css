@@ -1,13 +1,11 @@
 .install-prompt {
   position: fixed;
   z-index: 1000;
-  right: 12px;
-  bottom: 12px;
-  left: 12px;
+  right: 22px;
+  bottom: 22px;
   display: grid;
   gap: 10px;
-  max-width: 520px;
-  margin: 0 auto;
+  width: min(430px, calc(100vw - 44px));
   border: 1px solid rgba(31, 90, 61, 0.16);
   border-radius: 18px;
   padding: 16px;
@@ -60,6 +58,7 @@
   color: white;
   background: var(--forest);
   font-weight: 800;
+  cursor: pointer;
 }
 
 .install-prompt-steps {
@@ -79,11 +78,8 @@
   font-size: 0.76rem;
 }
 
-@media (min-width: 700px) {
-  .install-prompt {
-    right: 22px;
-    bottom: 22px;
-    left: auto;
-    width: min(430px, calc(100vw - 44px));
+@media (max-width: 799px), (pointer: coarse) {
+  .desktop-popout-prompt {
+    display: none !important;
   }
 }
