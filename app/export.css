@@ -1,0 +1,103 @@
+.export-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 26px;
+  margin: 4px 0 30px;
+  border: 1px solid rgba(142, 0, 0, 0.18);
+  border-radius: 18px;
+  padding: 20px;
+  background: linear-gradient(135deg, #fff, #fff8f7);
+  box-shadow: 0 8px 28px rgba(90, 19, 19, 0.06);
+}
+
+.export-panel h2 {
+  margin: 3px 0 7px;
+  font-size: 1.25rem;
+}
+
+.export-panel p {
+  max-width: 650px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.export-eyebrow {
+  color: #8e0000 !important;
+  font-size: 0.7rem !important;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.export-controls {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+}
+
+.export-controls label {
+  display: grid;
+  gap: 7px;
+}
+
+.export-controls label span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.export-controls input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: white;
+  outline: none;
+}
+
+.export-controls input:focus {
+  border-color: #8e0000;
+  box-shadow: 0 0 0 3px rgba(142, 0, 0, 0.08);
+}
+
+.export-button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 15px;
+  color: white;
+  background: #8e0000;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.export-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.export-count,
+.export-error {
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.export-count {
+  color: var(--muted);
+}
+
+.export-error {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .export-panel {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 16px;
+  }
+}
