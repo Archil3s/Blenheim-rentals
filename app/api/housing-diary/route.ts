@@ -1,5 +1,6 @@
 import { getRentalFeed } from "@/lib/rentals";
 import { getCachedFeed, setCachedFeed } from "@/lib/rentals/cache";
+import { enrichRentalContacts } from "@/lib/rentals/contact-enrichment";
 import { generateHousingDiary } from "@/lib/rentals/housing-diary";
 
 export const runtime = "nodejs";
@@ -51,7 +52,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const diary = await generateHousingDiary("", rentals);
+    const enrichedRentals = await enrichRentalContacts(rentals);
+    const diary = await generateHousingDiary("", enrichedRentals);
     const filename = `Housing Search Diary - ${exportDate(feed.checkedAt)}.docx`;
 
     return new Response(diary, {
