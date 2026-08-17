@@ -54,6 +54,24 @@ const SHORT_HEADERS = [
   "Result or follow up action",
 ];
 
+const BLENHEIM_SUBURBS = new Set([
+  "blenheim",
+  "blenheim central",
+  "redwoodtown",
+  "witherlea",
+  "springlands",
+  "mayfield",
+  "burleigh",
+  "riverlands",
+  "riversdale",
+  "grovetown",
+  "omaka",
+  "islington",
+  "fairhall",
+]);
+
+const MARLBOROUGH_TOWNS = ["Picton", "Renwick", "Havelock", "Seddon", "Ward", "Rarangi"];
+
 function compact(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() || "";
 }
@@ -74,6 +92,34 @@ function money(rent: number | null) {
   return rent == null ? "Rent TBC" : `$${Math.round(rent)} pw`;
 }
 
+function townForRental(rental: Rental) {
+  const suburb = compact(rental.suburb);
+  const address = compact(rental.address);
+  const localityText = `${suburb} ${address}`.toLowerCase();
+
+  for (const town of MARLBOROUGH_TOWNS) {
+    if (localityText.includes(town.toLowerCase())) return town;
+  }
+
+  if (BLENHEIM_SUBURBS.has(suburb.toLowerCase()) || rental.region?.toLowerCase() === "marlborough") {
+    return "Blenheim";
+  }
+
+  if (rental.region?.toLowerCase() === "nelson" || /\bnelson\b/i.test(localityText)) {
+    return "Nelson";
+  }
+
+  return compact(rental.area) || suburb || compact(rental.region);
+}
+
+function diaryAddress(rental: Rental) {
+  const address = compact(rental.address);
+  const town = townForRental(rental);
+  if (!town) return address;
+  if (address.toLowerCase().endsWith(`(${town.toLowerCase()})`)) return address;
+  return `${address} (${town})`;
+}
+
 function listingNotes(rental: Rental) {
   const band = rentPriceBandFor(rental.rent);
   const values = [
@@ -92,7 +138,7 @@ function rentalValues(rental?: Rental) {
     checkedDate(rental.checkedAt),
     compact(rental.contactType) || "Online",
     `${compact(rental.propertyType) || "Private rental"}\n${money(rental.rent)}`,
-    rental.address,
+    diaryAddress(rental),
     compact(rental.contactName) || "Contact person not published",
     "",
     listingNotes(rental),
