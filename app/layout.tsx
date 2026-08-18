@@ -8,9 +8,9 @@ import "./regions.css";
 import "./install-prompt.css";
 
 export const metadata: Metadata = {
-  title: "Marlborough, Nelson, Kaikōura + Christchurch Rentals",
+  title: "NZ Regional Rental Finder",
   description:
-    "A lightweight live view of current Marlborough, Nelson, Kaikōura and Christchurch rental listings.",
+    "Current rental listings across Wellington and selected South Island regions with housing diary export.",
   applicationName: "Rental Finder",
   appleWebApp: {
     capable: true,
