@@ -1,6 +1,17 @@
 import type { Rental, RentalSourceAdapter } from "../types";
 
-type SearchRegion = "Marlborough" | "Nelson" | "Kaikōura" | "Christchurch";
+type SearchRegion =
+  | "Marlborough"
+  | "Nelson"
+  | "Kaikōura"
+  | "Christchurch"
+  | "Wellington"
+  | "Dunedin"
+  | "Invercargill"
+  | "Timaru"
+  | "Queenstown-Lakes"
+  | "Ashburton";
+
 type SearchPage = { url: string; region: SearchRegion };
 
 const SEARCH_PAGES: SearchPage[] = [
@@ -9,9 +20,15 @@ const SEARCH_PAGES: SearchPage[] = [
   { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_1", region: "Nelson" },
   { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_nelson-nelson-bays-271_page_2", region: "Nelson" },
   { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_1", region: "Kaikōura" },
-  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_kaik-ura-marlborough-272_page_2", region: "Kaikōura" },
   { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_1", region: "Christchurch" },
   { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_christchurch-city-canterbury-282_page_2", region: "Christchurch" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_wellington-city-wellington-265_page_1", region: "Wellington" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_wellington-city-wellington-265_page_2", region: "Wellington" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_dunedin-city-otago-286_page_1", region: "Dunedin" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_invercargill-city-southland-292_page_1", region: "Invercargill" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_timaru-canterbury-278_page_1", region: "Timaru" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_queenstown-central-otago-lakes-district-300_page_1", region: "Queenstown-Lakes" },
+  { url: "https://www.oneroof.co.nz/search/houses-for-rent/district_ashburton-canterbury-281_page_1", region: "Ashburton" },
 ];
 
 const HTML_ENTITY_MAP: Record<string, string> = {
@@ -57,6 +74,9 @@ function suburbFromAddress(address: string): string | undefined {
 
 function regionFromUrl(url: string): SearchRegion | null {
   const pathname = new URL(url).pathname.toLowerCase();
+  if (pathname.includes("/property/wellington/")) return "Wellington";
+  if (pathname.includes("/property/southland/")) return "Invercargill";
+  if (pathname.includes("/property/otago/") || pathname.includes("/property/central-otago-lakes")) return "Dunedin";
   if (pathname.includes("/property/marlborough/kaikoura/") || pathname.includes("/property/marlborough/kaikoura-surrounds/")) return "Kaikōura";
   if (pathname.includes("/property/canterbury/")) return "Christchurch";
   if (pathname.includes("/property/marlborough/")) return "Marlborough";
@@ -120,7 +140,7 @@ export function parseOneRoofHtml(html: string, forcedRegion?: SearchRegion): Ren
   for (const match of html.matchAll(anchorPattern)) {
     const href = decodeHtml(match[2]);
     const url = absoluteUrl(href);
-    if (!url || !/\/property\/(?:marlborough|nelson-bays|nelson|canterbury)\//i.test(new URL(url).pathname)) continue;
+    if (!url || !/\/property\//i.test(new URL(url).pathname)) continue;
 
     const text = textFromHtml(match[3]);
     const rental = parseListingText(text, url, forcedRegion);
@@ -140,7 +160,7 @@ async function fetchOneRoofPage(page: SearchPage): Promise<Rental[]> {
       "Accept-Language": "en-NZ,en;q=0.9",
       "User-Agent": "Mozilla/5.0 (compatible; BlenheimRentals/1.0; +https://github.com/Archil3s/Blenheim-rentals)",
     },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(4_000),
   });
   if (!response.ok) throw new Error(`OneRoof returned HTTP ${response.status} for ${page.region}`);
   return parseOneRoofHtml(await response.text(), page.region);
