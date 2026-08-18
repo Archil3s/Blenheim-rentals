@@ -35,7 +35,7 @@
 
 .region-index-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 10px;
 }
 
@@ -73,29 +73,17 @@
   outline-offset: 1px;
 }
 
-.region-index-all {
-  background: #f7f8f5;
-}
-
-.region-index-marlborough {
-  border-color: #cfe5d4;
-  background: #f0f8f2;
-}
-
-.region-index-nelson {
-  border-color: #eadf9f;
-  background: #fff9df;
-}
-
-.region-index-kaikoura {
-  border-color: #cbdde5;
-  background: #f0f7fa;
-}
-
-.region-index-christchurch {
-  border-color: #ddd7e9;
-  background: #f6f3fa;
-}
+.region-index-all { background: #f7f8f5; }
+.region-index-marlborough { border-color: #cfe5d4; background: #f0f8f2; }
+.region-index-nelson { border-color: #eadf9f; background: #fff9df; }
+.region-index-kaikoura { border-color: #cbdde5; background: #f0f7fa; }
+.region-index-christchurch { border-color: #ddd7e9; background: #f6f3fa; }
+.region-index-wellington { border-color: #c8e1df; background: #eff8f7; }
+.region-index-dunedin { border-color: #ccdceb; background: #f1f6fb; }
+.region-index-invercargill { border-color: #d5dce0; background: #f5f7f8; }
+.region-index-timaru { border-color: #ead7ca; background: #fbf5f0; }
+.region-index-queenstown-lakes { border-color: #ead2db; background: #fbf2f5; }
+.region-index-ashburton { border-color: #e5d9bf; background: #faf6ec; }
 
 .region-card {
   position: relative;
@@ -126,6 +114,42 @@
   background: linear-gradient(180deg, #f6f3fa 0%, #ffffff 44%);
 }
 
+.region-card.region-wellington {
+  border-color: #c8e1df;
+  border-top-color: #86bab6;
+  background: linear-gradient(180deg, #eff8f7 0%, #ffffff 44%);
+}
+
+.region-card.region-dunedin {
+  border-color: #ccdceb;
+  border-top-color: #8dadd0;
+  background: linear-gradient(180deg, #f1f6fb 0%, #ffffff 44%);
+}
+
+.region-card.region-invercargill {
+  border-color: #d5dce0;
+  border-top-color: #9caab1;
+  background: linear-gradient(180deg, #f5f7f8 0%, #ffffff 44%);
+}
+
+.region-card.region-timaru {
+  border-color: #ead7ca;
+  border-top-color: #d4aa8d;
+  background: linear-gradient(180deg, #fbf5f0 0%, #ffffff 44%);
+}
+
+.region-card.region-queenstown-lakes {
+  border-color: #ead2db;
+  border-top-color: #c995a8;
+  background: linear-gradient(180deg, #fbf2f5 0%, #ffffff 44%);
+}
+
+.region-card.region-ashburton {
+  border-color: #e5d9bf;
+  border-top-color: #cbb57f;
+  background: linear-gradient(180deg, #faf6ec 0%, #ffffff 44%);
+}
+
 .region-label {
   display: inline-flex;
   align-items: center;
@@ -136,25 +160,16 @@
   font-weight: 900;
 }
 
-.region-label-marlborough {
-  color: #28653a;
-  background: #dff0e3;
-}
-
-.region-label-nelson {
-  color: #725d13;
-  background: #f8eeb9;
-}
-
-.region-label-kaikoura {
-  color: #2d6074;
-  background: #dcecf2;
-}
-
-.region-label-christchurch {
-  color: #5d4a78;
-  background: #e9e3f2;
-}
+.region-label-marlborough { color: #28653a; background: #dff0e3; }
+.region-label-nelson { color: #725d13; background: #f8eeb9; }
+.region-label-kaikoura { color: #2d6074; background: #dcecf2; }
+.region-label-christchurch { color: #5d4a78; background: #e9e3f2; }
+.region-label-wellington { color: #2e6662; background: #dcefed; }
+.region-label-dunedin { color: #365d82; background: #e1ebf5; }
+.region-label-invercargill { color: #4d5d64; background: #e8edef; }
+.region-label-timaru { color: #79543f; background: #f3e6dd; }
+.region-label-queenstown-lakes { color: #7a4d5e; background: #f3e2e8; }
+.region-label-ashburton { color: #6e5c32; background: #f1e9d5; }
 
 @media (max-width: 850px) {
   .region-index-grid {
