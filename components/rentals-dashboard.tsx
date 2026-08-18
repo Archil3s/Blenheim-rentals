@@ -9,7 +9,18 @@ import {
 import { rentalSourceDirectory } from "@/lib/rentals/source-directory";
 import type { Rental, RentalsResponse } from "@/lib/rentals/types";
 
-const REGION_OPTIONS = ["Marlborough", "Nelson", "Kaikōura", "Christchurch"] as const;
+const REGION_OPTIONS = [
+  "Marlborough",
+  "Nelson",
+  "Kaikōura",
+  "Christchurch",
+  "Wellington",
+  "Dunedin",
+  "Invercargill",
+  "Timaru",
+  "Queenstown-Lakes",
+  "Ashburton",
+] as const;
 
 const money = new Intl.NumberFormat("en-NZ", {
   style: "currency",
@@ -18,11 +29,12 @@ const money = new Intl.NumberFormat("en-NZ", {
 });
 
 function regionSlug(region?: string) {
-  const value = region?.toLowerCase() ?? "marlborough";
-  if (value === "nelson") return "nelson";
-  if (value === "kaikōura" || value === "kaikoura") return "kaikoura";
-  if (value === "christchurch") return "christchurch";
-  return "marlborough";
+  return (region ?? "Marlborough")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function formatCheckedAt(value?: string) {
@@ -198,10 +210,18 @@ export function RentalsDashboard() {
         .map((rental) => rental.suburb?.trim())
         .filter((value): value is string => Boolean(value)),
     );
-    suburbs.add("Blenheim Central");
-    suburbs.add("Nelson City");
-    suburbs.add("Kaikōura");
-    suburbs.add("Christchurch Central");
+    [
+      "Blenheim Central",
+      "Nelson City",
+      "Kaikōura",
+      "Christchurch Central",
+      "Wellington Central",
+      "Dunedin Central",
+      "Invercargill",
+      "Timaru Central",
+      "Queenstown",
+      "Ashburton",
+    ].forEach((area) => suburbs.add(area));
     return [...suburbs].sort((a, b) => a.localeCompare(b));
   }, [data]);
 
@@ -318,10 +338,10 @@ export function RentalsDashboard() {
       <header className="hero">
         <div className="hero-inner">
           <div>
-            <p className="eyebrow">MARLBOROUGH · NELSON · KAIKŌURA · CHRISTCHURCH</p>
+            <p className="eyebrow">WELLINGTON + KEY SOUTH ISLAND RENTAL CENTRES</p>
             <h1>Rental Finder</h1>
             <p className="hero-copy">
-              Current rentals across Marlborough, Nelson, Kaikōura and Christchurch, with housing-diary details, photos, features and direct listing links.
+              Search current rentals across Marlborough, Nelson, Wellington and selected South Island centres, with housing-diary details, photos, features and direct listing links.
             </p>
           </div>
 
@@ -391,7 +411,7 @@ export function RentalsDashboard() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="e.g. Springlands, Kaikōura, Riccarton or Ana"
+              placeholder="e.g. Blenheim, Wellington, Dunedin or Riccarton"
             />
           </label>
 
