@@ -44,6 +44,16 @@ function safeHttpUrl(value: string, baseUrl: string) {
   }
 }
 
+function normalizeListingUrl(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
 function imageIdentity(url: URL) {
   const normalized = new URL(url);
   for (const key of [...normalized.searchParams.keys()]) {
@@ -104,11 +114,10 @@ function extractFullGallery(html: string, listingUrl: string, existing: string[]
     add(content);
   }
 
-  // OneRoof and several other providers keep the complete gallery in page JSON even
-  // when only a few thumbnails are rendered in the search result. Once we know the
-  // listing image CDN host from the initial thumbnails, scan same-host URLs from that
-  // embedded data so we can recover the complete gallery without scraping every card
-  // during the main rental-feed refresh.
+  // Provider detail pages often keep the complete gallery in embedded page JSON even
+  // when their search cards expose only a few thumbnails. Once the initial thumbnails
+  // tell us which image CDN belongs to this listing, collect same-host media URLs from
+  // that embedded data without adding unrelated site artwork.
   for (const match of decoded.matchAll(/(?:https?:)?\/\/[^"'<>\s\\]+/gi)) {
     add(match[0]);
   }
@@ -133,14 +142,12 @@ async function fetchListingHtml(url: string) {
 }
 
 export async function GET(request: Request) {
-  const id = new URL(request.url).searchParams.get("id")?.trim();
-  if (!id) return Response.json({ error: "Rental id is required" }, { status: 400 });
+  const requestUrl = new URL(request.url);
+  const id = requestUrl.searchParams.get("id")?.trim();
+  const requestedListingUrl = requestUrl.searchParams.get("url")?.trim();
 
-  const cached = imageCache.get(id);
-  if (cached && Date.now() - cached.createdAt < IMAGE_TTL_MS) {
-    return Response.json({ imageUrls: cached.imageUrls }, {
-      headers: { "Cache-Control": "private, max-age=60" },
-    });
+  if (!id && !requestedListingUrl) {
+    return Response.json({ error: "Rental id or listing URL is required" }, { status: 400 });
   }
 
   let feed = getCachedFeed(false)?.value;
@@ -149,8 +156,23 @@ export async function GET(request: Request) {
     setCachedFeed(feed);
   }
 
-  const rental = feed.rentals.find((item) => item.id === id);
-  if (!rental) return Response.json({ error: "Rental is no longer in the current feed" }, { status: 404 });
+  const normalizedRequestedUrl = requestedListingUrl
+    ? normalizeListingUrl(requestedListingUrl)
+    : undefined;
+  const rental = id
+    ? feed.rentals.find((item) => item.id === id)
+    : feed.rentals.find((item) => normalizeListingUrl(item.url) === normalizedRequestedUrl);
+
+  if (!rental) {
+    return Response.json({ error: "Rental is no longer in the current feed" }, { status: 404 });
+  }
+
+  const cached = imageCache.get(rental.id);
+  if (cached && Date.now() - cached.createdAt < IMAGE_TTL_MS) {
+    return Response.json({ imageUrls: cached.imageUrls }, {
+      headers: { "Cache-Control": "private, max-age=60" },
+    });
+  }
 
   const existing = initialImages(rental.imageUrl, rental.imageUrls);
   if (!rental.url) return Response.json({ imageUrls: existing });
@@ -159,7 +181,7 @@ export async function GET(request: Request) {
     const html = await fetchListingHtml(rental.url);
     const imageUrls = extractFullGallery(html, rental.url, existing);
     const result = imageUrls.length ? imageUrls : existing;
-    imageCache.set(id, { imageUrls: result, createdAt: Date.now() });
+    imageCache.set(rental.id, { imageUrls: result, createdAt: Date.now() });
     return Response.json({ imageUrls: result }, {
       headers: { "Cache-Control": "private, max-age=60" },
     });
