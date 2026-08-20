@@ -1,3 +1,4 @@
+import { extractListingImages } from "../html-images";
 import type { Rental, RentalSourceAdapter } from "../types";
 
 const SEARCH_URL = "https://www.quinovic.co.nz/for-rent/marlborough/";
@@ -100,15 +101,19 @@ function parseDetailPage(html: string, url: string): Rental | null {
   const availability = plain.match(/Availability\s+([^#|]{1,35}?)(?=Property Type|Property ID|Contact|About this property|Bedrooms|Bathrooms)/i)?.[1]?.trim();
   const { contactName, contactPhone, contactEmail } = contactDetails(plain);
   const sourceListingId = plain.match(/Property ID\s+([A-Z0-9-]+)/i)?.[1] || listingIdFromUrl(url);
+  const imageUrls = extractListingImages(html, url);
 
   return {
     id: `quinovic:${sourceListingId}`,
     address: suburb && !address.toLowerCase().includes(suburb.toLowerCase()) ? `${address}, ${suburb}` : address,
     suburb,
     area: "Blenheim",
+    region: "Marlborough",
     rent,
     bedrooms,
     bathrooms,
+    imageUrl: imageUrls[0],
+    imageUrls: imageUrls.length ? imageUrls : undefined,
     source: "Quinovic Blenheim",
     sourceListingId,
     url,
