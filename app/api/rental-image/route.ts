@@ -29,10 +29,41 @@ function isSafeRemoteImageUrl(value: string) {
   }
 }
 
+async function fetchRemoteImage(remoteUrl: string, listingUrl: string) {
+  const baseHeaders = {
+    Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    "Accept-Language": "en-NZ,en;q=0.9",
+    "User-Agent":
+      "Mozilla/5.0 (compatible; RentalFinderNZ/1.0; +https://github.com/Archil3s/Blenheim-rentals)",
+  };
+
+  for (const headers of [
+    { ...baseHeaders, Referer: listingUrl },
+    baseHeaders,
+  ]) {
+    try {
+      const response = await fetch(remoteUrl, {
+        cache: "no-store",
+        headers,
+        signal: AbortSignal.timeout(8_000),
+      });
+
+      const contentType = response.headers.get("content-type") ?? "";
+      if (response.ok && contentType.toLowerCase().startsWith("image/")) {
+        return response;
+      }
+    } catch {
+      // Try the next header strategy or image candidate.
+    }
+  }
+
+  return null;
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const id = requestUrl.searchParams.get("id")?.trim();
-  const index = Math.max(0, Number(requestUrl.searchParams.get("index") ?? "0") || 0);
+  const requestedIndex = Math.max(0, Number(requestUrl.searchParams.get("index") ?? "0") || 0);
 
   if (!id) {
     return new Response("Rental id is required", { status: 400 });
@@ -54,43 +85,32 @@ export async function GET(request: Request) {
     : rental.imageUrl
       ? [rental.imageUrl]
       : [];
-  const remoteUrl = photos[index] ?? photos[0];
 
-  if (!remoteUrl || !isSafeRemoteImageUrl(remoteUrl)) {
+  if (photos.length === 0) {
     return new Response("Image not available", { status: 404 });
   }
 
-  try {
-    const upstream = await fetch(remoteUrl, {
-      cache: "no-store",
-      headers: {
-        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "Accept-Language": "en-NZ,en;q=0.9",
-        Referer: rental.url,
-        "User-Agent":
-          "Mozilla/5.0 (compatible; RentalFinderNZ/1.0; +https://github.com/Archil3s/Blenheim-rentals)",
-      },
-      signal: AbortSignal.timeout(8_000),
-    });
+  const candidateIndexes = [
+    requestedIndex,
+    ...photos.map((_, index) => index).filter((index) => index !== requestedIndex),
+  ];
 
-    if (!upstream.ok) {
-      return new Response("Image source unavailable", { status: 502 });
-    }
+  for (const index of candidateIndexes) {
+    const remoteUrl = photos[index];
+    if (!remoteUrl || !isSafeRemoteImageUrl(remoteUrl)) continue;
 
-    const contentType = upstream.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().startsWith("image/")) {
-      return new Response("Image source returned non-image content", { status: 502 });
-    }
+    const upstream = await fetchRemoteImage(remoteUrl, rental.url);
+    if (!upstream) continue;
 
     return new Response(upstream.body, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": upstream.headers.get("content-type") ?? "image/jpeg",
         "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
         "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch {
-    return new Response("Image source unavailable", { status: 502 });
   }
+
+  return new Response("Image source unavailable", { status: 502 });
 }
