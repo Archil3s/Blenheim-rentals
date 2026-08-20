@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { RentalsDashboard } from "@/components/rentals-dashboard";
 import { RENTAL_REGIONS, rentalRegionBySlug } from "@/lib/rentals/regions";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://blenheim-rentals.daniel-dutoit.workers.dev";
+
 type RegionPageProps = {
   params: Promise<{ region: string }>;
 };
@@ -44,5 +46,27 @@ export default async function RegionPage({ params }: RegionPageProps) {
 
   if (!region) notFound();
 
-  return <RentalsDashboard initialRegion={region.name} />;
+  const description = `Search current ${region.name} rentals from multiple sources, compare weekly rent and bedroom counts, and open the original listing.`;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: `${region.name} rentals`,
+    description,
+    url: `${siteUrl}/rentals/${region.slug}`,
+    isPartOf: {
+      "@type": "WebSite",
+      name: "Rental Finder NZ",
+      url: siteUrl,
+    },
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <RentalsDashboard initialRegion={region.name} />
+    </>
+  );
 }
