@@ -1,156 +1,143 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { Rental } from "@/lib/rentals/types";
+import { useEffect } from "react";
 
-function initialPhotos(rental: Rental) {
-  return rental.imageUrls?.length
-    ? rental.imageUrls
-    : rental.imageUrl
-      ? [rental.imageUrl]
-      : [];
+type GalleryPayload = {
+  imageUrls?: string[];
+};
+
+function normalizedUrl(value: string) {
+  try {
+    return new URL(value, window.location.origin).toString();
+  } catch {
+    return value;
+  }
 }
 
-export function RentalPhotoGallery({ rental }: { rental: Rental }) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const galleryRef = useRef<HTMLDivElement>(null);
-  const requestedRef = useRef(false);
-  const [photos, setPhotos] = useState<string[]>(() => initialPhotos(rental));
+function applyGallery(gallery: HTMLElement, imageUrls: string[]) {
+  const slides = Array.from(gallery.querySelectorAll<HTMLElement>(".photo-slide"));
+  const existing = new Set(
+    slides
+      .map((slide) => slide.querySelector<HTMLImageElement>("img")?.src)
+      .filter((value): value is string => Boolean(value))
+      .map(normalizedUrl),
+  );
 
+  for (const imageUrl of imageUrls) {
+    const normalized = normalizedUrl(imageUrl);
+    if (!normalized || existing.has(normalized)) continue;
+
+    const slide = document.createElement("div");
+    slide.className = "photo-slide";
+
+    const image = document.createElement("img");
+    image.src = normalized;
+    image.alt = "Rental property photo";
+    image.loading = "lazy";
+    image.draggable = false;
+
+    slide.appendChild(image);
+    gallery.appendChild(slide);
+    existing.add(normalized);
+  }
+
+  const allSlides = Array.from(gallery.querySelectorAll<HTMLElement>(".photo-slide"));
+  const total = allSlides.length;
+
+  allSlides.forEach((slide, index) => {
+    let count = slide.querySelector<HTMLElement>(".photo-count");
+    if (total <= 1) {
+      count?.remove();
+      return;
+    }
+
+    if (!count) {
+      count = document.createElement("span");
+      count.className = "photo-count";
+      slide.appendChild(count);
+    }
+    count.textContent = `${index + 1}/${total}`;
+  });
+}
+
+export function PhotoGalleryEnricher() {
   useEffect(() => {
-    setPhotos(initialPhotos(rental));
-    requestedRef.current = false;
-  }, [rental.id]);
+    const galleryCache = new Map<string, string[]>();
+    const loading = new Set<string>();
+    const observed = new WeakSet<Element>();
 
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper || requestedRef.current) return;
+    const enrichCard = async (card: Element) => {
+      const gallery = card.querySelector<HTMLElement>(".photo-gallery");
+      const listingLink = card.querySelector<HTMLAnchorElement>(".listing-link");
+      if (!gallery || !listingLink?.href) return;
 
-    let cancelled = false;
+      const listingUrl = listingLink.href;
+      const cached = galleryCache.get(listingUrl);
+      if (cached) {
+        applyGallery(gallery, cached);
+        return;
+      }
+      if (loading.has(listingUrl)) return;
 
-    const loadFullGallery = async () => {
-      if (requestedRef.current) return;
-      requestedRef.current = true;
-
+      loading.add(listingUrl);
       try {
-        const response = await fetch(`/api/rental-images?id=${encodeURIComponent(rental.id)}`, {
+        const response = await fetch(`/api/rental-images?url=${encodeURIComponent(listingUrl)}`, {
           cache: "no-store",
         });
         if (!response.ok) return;
 
-        const payload = (await response.json()) as { imageUrls?: string[] };
-        if (!Array.isArray(payload.imageUrls) || cancelled) return;
+        const payload = (await response.json()) as GalleryPayload;
+        if (!Array.isArray(payload.imageUrls) || payload.imageUrls.length === 0) return;
 
-        setPhotos((current) => {
-          const merged = [...new Set([...current, ...payload.imageUrls!].filter(Boolean))];
-          return merged.length > current.length ? merged : current;
-        });
+        galleryCache.set(listingUrl, payload.imageUrls);
+        applyGallery(gallery, payload.imageUrls);
       } catch {
-        // Keep the search-page photos if detail-page enrichment is unavailable.
+        // Keep the search-page thumbnails if the detail page is unavailable.
+      } finally {
+        loading.delete(listingUrl);
       }
     };
 
-    if (!("IntersectionObserver" in window)) {
-      void loadFullGallery();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const observer = new IntersectionObserver(
+    const intersectionObserver = new IntersectionObserver(
       (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        observer.disconnect();
-        void loadFullGallery();
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          intersectionObserver.unobserve(entry.target);
+          void enrichCard(entry.target);
+        }
       },
-      { rootMargin: "300px 0px" },
+      { rootMargin: "350px 0px" },
     );
 
-    observer.observe(wrapper);
-    return () => {
-      cancelled = true;
-      observer.disconnect();
+    const scanCards = () => {
+      document.querySelectorAll<HTMLElement>(".rental-card").forEach((card) => {
+        const gallery = card.querySelector<HTMLElement>(".photo-gallery");
+        const listingUrl = card.querySelector<HTMLAnchorElement>(".listing-link")?.href;
+        if (!gallery || !listingUrl) return;
+
+        const cached = galleryCache.get(listingUrl);
+        if (cached) {
+          const currentCount = gallery.querySelectorAll(".photo-slide").length;
+          if (currentCount < cached.length) applyGallery(gallery, cached);
+          return;
+        }
+
+        if (!observed.has(card)) {
+          observed.add(card);
+          intersectionObserver.observe(card);
+        }
+      });
     };
-  }, [rental.id]);
 
-  const movePhoto = (direction: -1 | 1) => {
-    const gallery = galleryRef.current;
-    if (!gallery) return;
+    scanCards();
+    const mutationObserver = new MutationObserver(scanCards);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
 
-    gallery.scrollBy({
-      left: direction * gallery.clientWidth,
-      behavior: "smooth",
-    });
-  };
+    return () => {
+      mutationObserver.disconnect();
+      intersectionObserver.disconnect();
+    };
+  }, []);
 
-  if (photos.length === 0) {
-    return (
-      <div ref={wrapperRef} className="rental-photo-empty">
-        <span>🏠</span>
-        <div className="source-pill">{rental.source}</div>
-      </div>
-    );
-  }
-
-  const arrowStyle = {
-    position: "absolute" as const,
-    top: "50%",
-    zIndex: 4,
-    display: "grid",
-    width: 46,
-    height: 46,
-    placeItems: "center",
-    transform: "translateY(-50%)",
-    border: "1px solid rgba(20, 61, 42, 0.18)",
-    borderRadius: 999,
-    color: "#143d2a",
-    background: "rgba(255, 255, 255, 0.92)",
-    boxShadow: "0 5px 18px rgba(0, 0, 0, 0.2)",
-    fontSize: "2rem",
-    fontWeight: 800,
-    lineHeight: 1,
-    cursor: "pointer",
-    backdropFilter: "blur(8px)",
-  };
-
-  return (
-    <div ref={wrapperRef} style={{ position: "relative" }}>
-      <div ref={galleryRef} className="photo-gallery" aria-label={`Photos of ${rental.address}`}>
-        {photos.map((photo, index) => (
-          <div className="photo-slide" key={`${photo}-${index}`}>
-            <img src={photo} alt={`${rental.address} photo ${index + 1}`} loading="lazy" />
-            {index === 0 && <div className="source-pill">{rental.source}</div>}
-            {photos.length > 1 && (
-              <span className="photo-count">
-                {index + 1}/{photos.length}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {photos.length > 1 && (
-        <>
-          <button
-            type="button"
-            aria-label={`Previous photo of ${rental.address}`}
-            title="Previous photo"
-            onClick={() => movePhoto(-1)}
-            style={{ ...arrowStyle, left: 10 }}
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            aria-label={`Next photo of ${rental.address}`}
-            title="Next photo"
-            onClick={() => movePhoto(1)}
-            style={{ ...arrowStyle, right: 10 }}
-          >
-            ›
-          </button>
-        </>
-      )}
-    </div>
-  );
+  return null;
 }
