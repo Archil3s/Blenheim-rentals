@@ -1,8 +1,30 @@
 import { getRentalFeed } from "@/lib/rentals";
 import { getCachedFeed, setCachedFeed } from "@/lib/rentals/cache";
+import type { RentalFeed } from "@/lib/rentals/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function withProxiedImages(feed: RentalFeed) {
+  return {
+    ...feed,
+    rentals: feed.rentals.map((rental) => {
+      const photoCount = rental.imageUrls?.length ?? (rental.imageUrl ? 1 : 0);
+      if (photoCount === 0) return rental;
+
+      const imageUrls = Array.from(
+        { length: photoCount },
+        (_, index) => `/api/rental-image?id=${encodeURIComponent(rental.id)}&index=${index}`,
+      );
+
+      return {
+        ...rental,
+        imageUrl: imageUrls[0],
+        imageUrls,
+      };
+    }),
+  };
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -13,7 +35,7 @@ export async function GET(request: Request) {
 
     if (cached) {
       return Response.json(
-        { ...cached.value, fromCache: true },
+        { ...withProxiedImages(cached.value), fromCache: true },
         {
           headers: {
             "Cache-Control": "no-store, max-age=0",
@@ -26,7 +48,7 @@ export async function GET(request: Request) {
     setCachedFeed(feed);
 
     return Response.json(
-      { ...feed, fromCache: false },
+      { ...withProxiedImages(feed), fromCache: false },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",
