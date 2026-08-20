@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { DesktopPopoutPrompt } from "@/components/desktop-popout-prompt";
-import { PhotoGalleryEnricher } from "@/components/rental-photo-gallery";
 import "./globals.css";
 import "./sources.css";
 import "./export.css";
@@ -63,7 +62,6 @@ export default function RootLayout({
     <html lang="en-NZ">
       <body>
         {children}
-        <PhotoGalleryEnricher />
         <DesktopPopoutPrompt />
       </body>
     </html>
