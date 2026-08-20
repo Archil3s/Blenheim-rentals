@@ -1,3 +1,4 @@
+import { extractListingImages } from "../html-images";
 import type { Rental, RentalSourceAdapter } from "../types";
 
 type SearchRegion =
@@ -145,8 +146,14 @@ export function parseOneRoofHtml(html: string, forcedRegion?: SearchRegion): Ren
     const text = textFromHtml(match[3]);
     const rental = parseListingText(text, url, forcedRegion);
     if (!rental || seen.has(rental.id)) continue;
+
+    const imageUrls = extractListingImages(match[0], url);
     seen.add(rental.id);
-    listings.push(rental);
+    listings.push(
+      imageUrls.length
+        ? { ...rental, imageUrl: imageUrls[0], imageUrls }
+        : rental,
+    );
   }
 
   return listings;

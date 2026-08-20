@@ -1,3 +1,4 @@
+import { extractListingImages } from "../html-images";
 import type { Rental, RentalSourceAdapter } from "../types";
 
 const SEARCH_URL = "https://www.bnproperties.co.nz/property/";
@@ -124,15 +125,19 @@ function parseDetailPage(html: string, url: string): Rental | null {
   const { contactName, contactEmail, contactPhone } = agentDetails(plain);
   const availableFrom = plain.match(/Available from:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i)?.[1];
   const sourceListingId = listingIdFromUrl(url);
+  const imageUrls = extractListingImages(html, url);
 
   return {
     id: `bn:${sourceListingId}`,
     address,
     suburb: suburbFromAddress(address),
     area: "Blenheim",
+    region: "Marlborough",
     rent,
     bedrooms: firstNumber(plain, /\b(\d+)\s+bedrooms?\b/i),
     bathrooms: firstNumber(plain, /\b(\d+)\s+(?:full\s+)?bathrooms?\b/i),
+    imageUrl: imageUrls[0],
+    imageUrls: imageUrls.length ? imageUrls : undefined,
     source: "B&N Properties",
     sourceListingId,
     url,

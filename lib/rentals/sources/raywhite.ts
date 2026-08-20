@@ -1,3 +1,4 @@
+import { extractListingImages } from "../html-images";
 import type { Rental, RentalSourceAdapter } from "../types";
 
 const SEARCH_URL =
@@ -108,7 +109,8 @@ export function parseRayWhiteHtml(html: string): Rental[] {
     const matchIndex = match.index ?? 0;
     const contextStart = Math.max(0, matchIndex - 1400);
     const contextEnd = Math.min(html.length, matchIndex + match[0].length + 1400);
-    const context = textFromHtml(html.slice(contextStart, contextEnd));
+    const contextHtml = html.slice(contextStart, contextEnd);
+    const context = textFromHtml(contextHtml);
     const addressIndex = context.toLowerCase().indexOf(address.toLowerCase());
     const beforeAddress = addressIndex >= 0 ? context.slice(0, addressIndex) : context;
     const afterAddress = addressIndex >= 0 ? context.slice(addressIndex + address.length) : context;
@@ -121,6 +123,7 @@ export function parseRayWhiteHtml(html: string): Rental[] {
     if (seen.has(id)) continue;
 
     const available = availability(beforeAddress);
+    const imageUrls = extractListingImages(contextHtml, url, 6);
 
     seen.add(id);
     rentals.push({
@@ -128,9 +131,12 @@ export function parseRayWhiteHtml(html: string): Rental[] {
       address,
       suburb: suburbFromAddress(address),
       area: "Blenheim",
+      region: "Marlborough",
       rent,
       bedrooms: firstCount(afterAddress, "bed"),
       bathrooms: firstCount(afterAddress, "bath"),
+      imageUrl: imageUrls[0],
+      imageUrls: imageUrls.length ? imageUrls : undefined,
       source: "Ray White Blenheim",
       sourceListingId,
       url,
