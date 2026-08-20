@@ -1,8 +1,8 @@
+import { bayleysSource } from "./bayleys";
 import { bnPropertiesSource } from "./bn-properties";
 import { demoSource } from "./demo";
 import { oneRoofSource } from "./oneroof";
 import {
-  bayleysSource,
   harcourtsSource,
   homesSource,
   myRentSource,
@@ -21,9 +21,9 @@ export const rentalSources = [
   rayWhiteCompleteSource,
   bnPropertiesSource,
   quinovicSource,
+  bayleysSource,
   summitSource,
   realestateSource,
-  bayleysSource,
   harcourtsSource,
   propertyBrokersSource,
   myRentSource,
