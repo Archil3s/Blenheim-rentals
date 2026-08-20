@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   priceBandCounts,
   RENT_PRICE_BANDS,
@@ -50,11 +50,22 @@ function DiaryRow({ label, value }: { label: string; value?: string | null }) {
 }
 
 function RentalPhotos({ rental }: { rental: Rental }) {
+  const galleryRef = useRef<HTMLDivElement>(null);
   const photos = rental.imageUrls?.length
     ? rental.imageUrls
     : rental.imageUrl
       ? [rental.imageUrl]
       : [];
+
+  const movePhoto = (direction: -1 | 1) => {
+    const gallery = galleryRef.current;
+    if (!gallery) return;
+
+    gallery.scrollBy({
+      left: direction * gallery.clientWidth,
+      behavior: "smooth",
+    });
+  };
 
   if (photos.length === 0) {
     return (
@@ -65,19 +76,65 @@ function RentalPhotos({ rental }: { rental: Rental }) {
     );
   }
 
+  const arrowStyle = {
+    position: "absolute" as const,
+    top: "50%",
+    zIndex: 4,
+    display: "grid",
+    width: 46,
+    height: 46,
+    placeItems: "center",
+    transform: "translateY(-50%)",
+    border: "1px solid rgba(20, 61, 42, 0.18)",
+    borderRadius: 999,
+    color: "#143d2a",
+    background: "rgba(255, 255, 255, 0.92)",
+    boxShadow: "0 5px 18px rgba(0, 0, 0, 0.2)",
+    fontSize: "2rem",
+    fontWeight: 800,
+    lineHeight: 1,
+    cursor: "pointer",
+    backdropFilter: "blur(8px)",
+  };
+
   return (
-    <div className="photo-gallery" aria-label={`Photos of ${rental.address}`}>
-      {photos.map((photo, index) => (
-        <div className="photo-slide" key={`${photo}-${index}`}>
-          <img src={photo} alt={`${rental.address} photo ${index + 1}`} loading="lazy" />
-          {index === 0 && <div className="source-pill">{rental.source}</div>}
-          {photos.length > 1 && (
-            <span className="photo-count">
-              {index + 1}/{photos.length}
-            </span>
-          )}
-        </div>
-      ))}
+    <div style={{ position: "relative" }}>
+      <div ref={galleryRef} className="photo-gallery" aria-label={`Photos of ${rental.address}`}>
+        {photos.map((photo, index) => (
+          <div className="photo-slide" key={`${photo}-${index}`}>
+            <img src={photo} alt={`${rental.address} photo ${index + 1}`} loading="lazy" />
+            {index === 0 && <div className="source-pill">{rental.source}</div>}
+            {photos.length > 1 && (
+              <span className="photo-count">
+                {index + 1}/{photos.length}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {photos.length > 1 && (
+        <>
+          <button
+            type="button"
+            aria-label={`Previous photo of ${rental.address}`}
+            title="Previous photo"
+            onClick={() => movePhoto(-1)}
+            style={{ ...arrowStyle, left: 10 }}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label={`Next photo of ${rental.address}`}
+            title="Next photo"
+            onClick={() => movePhoto(1)}
+            style={{ ...arrowStyle, right: 10 }}
+          >
+            ›
+          </button>
+        </>
+      )}
     </div>
   );
 }
