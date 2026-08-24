@@ -7,7 +7,6 @@ import {
   rentPriceBandFor,
 } from "@/lib/rentals/price-bands";
 import { RENTAL_REGIONS, rentalRegionSlug } from "@/lib/rentals/regions";
-import { rentalSourceDirectory } from "@/lib/rentals/source-directory";
 import type { Rental, RentalsResponse } from "@/lib/rentals/types";
 
 const money = new Intl.NumberFormat("en-NZ", {
@@ -24,20 +23,12 @@ type RentalsDashboardProps = {
 
 function formatCheckedAt(value?: string) {
   if (!value) return "Not checked yet";
-
   return new Intl.DateTimeFormat("en-NZ", {
     hour: "numeric",
     minute: "2-digit",
     day: "numeric",
     month: "short",
   }).format(new Date(value));
-}
-
-function accessLabel(access: "live" | "api" | "permission" | "manual") {
-  if (access === "live") return "LIVE";
-  if (access === "api") return "API";
-  if (access === "permission") return "PERMISSION";
-  return "OPEN SITE";
 }
 
 function DiaryRow({ label, value }: { label: string; value?: string | null }) {
@@ -60,7 +51,6 @@ function RentalPhotos({ rental }: { rental: Rental }) {
   const movePhoto = (direction: -1 | 1) => {
     const gallery = galleryRef.current;
     if (!gallery) return;
-
     gallery.scrollBy({
       left: direction * gallery.clientWidth,
       behavior: "smooth",
@@ -163,7 +153,6 @@ function RentalCard({
   return (
     <article className={`rental-card region-card region-${rentalRegionSlug(rental.region)}`}>
       <RentalPhotos rental={rental} />
-
       <div className="rental-body">
         <div className="price-row">
           <strong>{price}</strong>
@@ -180,9 +169,7 @@ function RentalCard({
         {featureLabels.length > 0 && (
           <div className="feature-scroll" aria-label="House features">
             {featureLabels.map((feature) => (
-              <span className="feature-chip" key={feature}>
-                {feature}
-              </span>
+              <span className="feature-chip" key={feature}>{feature}</span>
             ))}
           </div>
         )}
@@ -204,10 +191,7 @@ function RentalCard({
           <div className="diary-grid">
             <DiaryRow label="Checked" value={formatCheckedAt(rental.checkedAt)} />
             <DiaryRow label="Contact type / how found" value={rental.contactType} />
-            <DiaryRow
-              label="Property type / price"
-              value={`${rental.propertyType ?? "Private rental"} · ${price}`}
-            />
+            <DiaryRow label="Property type / price" value={`${rental.propertyType ?? "Private rental"} · ${price}`} />
             <DiaryRow label="Property address" value={rental.address} />
             <DiaryRow label="Contact person" value={rental.contactName} />
             <DiaryRow label="Phone" value={rental.contactPhone} />
@@ -222,24 +206,45 @@ function RentalCard({
           </button>
           <button type="button" onClick={() => onShare(rental)}>Share</button>
           <a href={mapUrl} target="_blank" rel="noreferrer">Map ↗</a>
-          <a href={rental.url} target="_blank" rel="noreferrer" className="listing-link">
-            Original ↗
-          </a>
+          <a href={rental.url} target="_blank" rel="noreferrer" className="listing-link">Original ↗</a>
         </div>
       </div>
     </article>
   );
 }
 
+function locationMatches(rental: Rental, location: string) {
+  if (location === "all") return true;
+  if (location.startsWith("region:")) {
+    return (rental.region ?? "Marlborough").toLowerCase() === location.slice(7).toLowerCase();
+  }
+  if (location.startsWith("suburb:")) {
+    const wanted = location.slice(7).toLowerCase();
+    return rental.suburb?.toLowerCase() === wanted || rental.address.toLowerCase().includes(wanted);
+  }
+  return true;
+}
+
+function locationLabel(value: string) {
+  if (value.startsWith("region:")) return value.slice(7);
+  if (value.startsWith("suburb:")) return value.slice(7);
+  return "All areas";
+}
+
 export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
   const initialLocation = initialRegion ? `region:${initialRegion}` : "all";
+  const initialLocations = useMemo(
+    () => (initialLocation === "all" ? [] : [initialLocation]),
+    [initialLocation],
+  );
+
   const [data, setData] = useState<RentalsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [minBeds, setMinBeds] = useState("0");
-  const [location, setLocation] = useState(initialLocation);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(initialLocations);
   const [sort, setSort] = useState<SortOption>("rent-asc");
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [savedOnly, setSavedOnly] = useState(false);
@@ -254,14 +259,9 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
   const load = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
-
     try {
-      const response = await fetch(`/api/rentals${force ? "?refresh=1" : ""}`, {
-        cache: "no-store",
-      });
-
+      const response = await fetch(`/api/rentals${force ? "?refresh=1" : ""}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Could not load rentals");
-
       const payload = (await response.json()) as RentalsResponse;
       setData(payload);
     } catch {
@@ -280,7 +280,15 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     setSearch(params.get("q") ?? "");
     setMaxRent(params.get("max") ?? "");
     setMinBeds(params.get("beds") ?? "0");
-    setLocation(params.get("location") ?? initialLocation);
+
+    const locations = params.getAll("location").filter(Boolean);
+    if (locations.length > 0) {
+      setSelectedLocations(locations.filter((value) => value !== "all"));
+    } else {
+      const oldSingle = params.get("location");
+      setSelectedLocations(oldSingle && oldSingle !== "all" ? [oldSingle] : initialLocations);
+    }
+
     const requestedSort = params.get("sort") as SortOption | null;
     if (["rent-asc", "rent-desc", "beds-desc", "checked-desc"].includes(requestedSort ?? "")) {
       setSort(requestedSort as SortOption);
@@ -294,13 +302,21 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       setSavedIds([]);
     }
     setFiltersReady(true);
-  }, [initialLocation]);
+  }, [initialLocation, initialLocations]);
 
   useEffect(() => {
     if (!filtersReady) return;
     const params = new URLSearchParams();
     if (search.trim()) params.set("q", search.trim());
-    if (location !== initialLocation) params.set("location", location);
+
+    const initialOnly =
+      selectedLocations.length === initialLocations.length &&
+      selectedLocations.every((value) => initialLocations.includes(value));
+
+    if (!initialOnly) {
+      selectedLocations.forEach((location) => params.append("location", location));
+    }
+
     if (maxRent) params.set("max", maxRent);
     if (minBeds !== "0") params.set("beds", minBeds);
     if (sort !== "rent-asc") params.set("sort", sort);
@@ -308,7 +324,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     const query = params.toString();
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
     window.history.replaceState(null, "", nextUrl);
-  }, [filtersReady, initialLocation, location, maxRent, minBeds, savedOnly, search, sort]);
+  }, [filtersReady, initialLocations, maxRent, minBeds, savedOnly, search, selectedLocations, sort]);
 
   const suburbOptions = useMemo(() => {
     const suburbs = new Set(
@@ -333,16 +349,22 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
 
   const regionCounts = useMemo(() => {
     const counts = Object.fromEntries(RENTAL_REGIONS.map((region) => [region.name, 0])) as Record<string, number>;
-
     for (const rental of data?.rentals ?? []) {
       const region = RENTAL_REGIONS.find(
         (candidate) => candidate.name.toLowerCase() === (rental.region ?? "Marlborough").toLowerCase(),
       );
       if (region) counts[region.name] += 1;
     }
-
     return counts;
   }, [data]);
+
+  const toggleLocation = useCallback((value: string) => {
+    setSelectedLocations((current) =>
+      current.includes(value)
+        ? current.filter((location) => location !== value)
+        : [...current, value],
+    );
+  }, []);
 
   const rentals = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -356,16 +378,9 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       const matchesRent = rental.rent == null || rental.rent <= max;
       const matchesBeds = rental.bedrooms == null || rental.bedrooms >= beds;
       const matchesSaved = !savedOnly || savedSet.has(rental.id);
-
-      let matchesLocation = true;
-      if (location.startsWith("region:")) {
-        matchesLocation =
-          (rental.region ?? "Marlborough").toLowerCase() === location.slice(7).toLowerCase();
-      } else if (location.startsWith("suburb:")) {
-        const wanted = location.slice(7).toLowerCase();
-        matchesLocation =
-          rental.suburb?.toLowerCase() === wanted || rental.address.toLowerCase().includes(wanted);
-      }
+      const matchesLocation =
+        selectedLocations.length === 0 ||
+        selectedLocations.some((location) => locationMatches(rental, location));
 
       return matchesSearch && matchesRent && matchesBeds && matchesSaved && matchesLocation;
     });
@@ -378,10 +393,9 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       }
       return (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER);
     });
-  }, [data, location, maxRent, minBeds, savedIds, savedOnly, search, sort]);
+  }, [data, maxRent, minBeds, savedIds, savedOnly, search, selectedLocations, sort]);
 
   const diaryBands = useMemo(() => priceBandCounts(rentals), [rentals]);
-
   const diaryRentals = useMemo(() => {
     const selected = new Set(selectedBands);
     return rentals.filter((rental) => {
@@ -409,13 +423,13 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
   const buildShareUrl = useCallback(() => {
     const url = new URL("/", window.location.origin);
     if (search.trim()) url.searchParams.set("q", search.trim());
-    if (location !== "all") url.searchParams.set("location", location);
+    selectedLocations.forEach((location) => url.searchParams.append("location", location));
     if (maxRent) url.searchParams.set("max", maxRent);
     if (minBeds !== "0") url.searchParams.set("beds", minBeds);
     if (sort !== "rent-asc") url.searchParams.set("sort", sort);
     if (savedOnly) url.searchParams.set("saved", "1");
     return url.toString();
-  }, [location, maxRent, minBeds, savedOnly, search, sort]);
+  }, [maxRent, minBeds, savedOnly, search, selectedLocations, sort]);
 
   const shareSearch = useCallback(async () => {
     const url = buildShareUrl();
@@ -427,7 +441,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
         flash("Search link copied");
       }
     } catch {
-      // Native share sheets can be dismissed without needing an error message.
+      // Native share sheets can be dismissed.
     }
   }, [buildShareUrl, flash]);
 
@@ -469,10 +483,10 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     setSearch("");
     setMaxRent("");
     setMinBeds("0");
-    setLocation(initialLocation);
+    setSelectedLocations(initialLocations);
     setSort("rent-asc");
     setSavedOnly(false);
-  }, [initialLocation]);
+  }, [initialLocations]);
 
   const toggleBand = useCallback((bandId: string) => {
     setSelectedBands((current) =>
@@ -484,7 +498,6 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
 
   const exportDiary = useCallback(async () => {
     if (diaryRentals.length === 0) return;
-
     setExporting(true);
     setExportError(null);
 
@@ -520,6 +533,13 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       setExporting(false);
     }
   }, [diaryRentals]);
+
+  const locationSummary =
+    selectedLocations.length === 0
+      ? "All areas"
+      : selectedLocations.length === 1
+        ? locationLabel(selectedLocations[0])
+        : `${selectedLocations.length} areas selected`;
 
   return (
     <main>
@@ -569,26 +589,95 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
               />
             </label>
 
-            <label>
-              <span>Area</span>
-              <select value={location} onChange={(event) => setLocation(event.target.value)}>
-                <option value="all">All areas</option>
-                <optgroup label="Regions">
-                  {RENTAL_REGIONS.map((region) => (
-                    <option key={region.name} value={`region:${region.name}`}>
-                      {region.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Suburbs / areas">
-                  {suburbOptions.map((suburb) => (
-                    <option key={suburb} value={`suburb:${suburb}`}>
-                      {suburb}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </label>
+            <div style={{ display: "grid", gap: 8 }}>
+              <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 800 }}>Locations</span>
+              <details
+                style={{
+                  position: "relative",
+                  minHeight: 48,
+                  border: "1px solid var(--line)",
+                  borderRadius: 12,
+                  background: "white",
+                }}
+              >
+                <summary
+                  style={{
+                    minHeight: 48,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 13px",
+                    cursor: "pointer",
+                    listStyle: "none",
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>{locationSummary}</span>
+                  <span>⌄</span>
+                </summary>
+                <div
+                  style={{
+                    position: "absolute",
+                    zIndex: 20,
+                    top: "calc(100% + 6px)",
+                    left: 0,
+                    width: "min(360px, 90vw)",
+                    maxHeight: 360,
+                    overflowY: "auto",
+                    padding: 12,
+                    border: "1px solid var(--line)",
+                    borderRadius: 12,
+                    background: "white",
+                    boxShadow: "0 14px 35px rgba(24,49,35,.16)",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <button type="button" onClick={() => setSelectedLocations([])}>All areas</button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLocations(RENTAL_REGIONS.map((region) => `region:${region.name}`))}
+                    >
+                      All regions
+                    </button>
+                  </div>
+
+                  <strong style={{ display: "block", marginBottom: 6 }}>Regions</strong>
+                  <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+                    {RENTAL_REGIONS.map((region) => {
+                      const value = `region:${region.name}`;
+                      return (
+                        <label key={region.name} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLocations.includes(value)}
+                            onChange={() => toggleLocation(value)}
+                          />
+                          <span style={{ flex: 1 }}>{region.name}</span>
+                          <small>{regionCounts[region.name]}</small>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <strong style={{ display: "block", marginBottom: 6 }}>Suburbs / areas</strong>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {suburbOptions.map((suburb) => {
+                      const value = `suburb:${suburb}`;
+                      return (
+                        <label key={suburb} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLocations.includes(value)}
+                            onChange={() => toggleLocation(value)}
+                          />
+                          <span>{suburb}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </details>
+            </div>
 
             <label>
               <span>Max rent / week</span>
@@ -625,6 +714,27 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
             </label>
           </div>
 
+          {selectedLocations.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, margin: "-14px 0 18px" }}>
+              {selectedLocations.map((location) => (
+                <button
+                  type="button"
+                  key={location}
+                  onClick={() => toggleLocation(location)}
+                  style={{
+                    border: "1px solid var(--line)",
+                    borderRadius: 999,
+                    padding: "6px 10px",
+                    background: "white",
+                    cursor: "pointer",
+                  }}
+                >
+                  {locationLabel(location)} ×
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="search-actions">
             <button type="button" className="primary-action" onClick={() => void shareSearch()}>Share search</button>
             <button type="button" onClick={saveSearch}>Save search</button>
@@ -651,25 +761,25 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
           </div>
 
           <div className="region-index-grid">
-            <a
-              href="/"
-              className={`region-index-card region-index-all ${location === "all" ? "active" : ""}`}
-            >
+            <a href="/" className={`region-index-card region-index-all ${selectedLocations.length === 0 ? "active" : ""}`}>
               <span>All areas</span>
               <strong>{data?.rentals.length ?? 0}</strong>
             </a>
 
-            {RENTAL_REGIONS.map((region) => (
-              <a
-                href={`/rentals/${region.slug}`}
-                key={region.name}
-                className={`region-index-card region-index-${region.slug} ${location === `region:${region.name}` ? "active" : ""} ${regionCounts[region.name] === 0 ? "empty-region" : ""}`}
-              >
-                <span>{region.name}</span>
-                <strong>{regionCounts[region.name]}</strong>
-                {regionCounts[region.name] === 0 && <small>No current listings</small>}
-              </a>
-            ))}
+            {RENTAL_REGIONS.map((region) => {
+              const selected = selectedLocations.includes(`region:${region.name}`);
+              return (
+                <a
+                  href={`/rentals/${region.slug}`}
+                  key={region.name}
+                  className={`region-index-card region-index-${region.slug} ${selected ? "active" : ""} ${regionCounts[region.name] === 0 ? "empty-region" : ""}`}
+                >
+                  <span>{region.name}</span>
+                  <strong>{regionCounts[region.name]}</strong>
+                  {regionCounts[region.name] === 0 && <small>No current listings</small>}
+                </a>
+              );
+            })}
           </div>
         </nav>
 
@@ -688,19 +798,15 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
               <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
               <h2>Choose the price bands to include</h2>
               <p>
-                Tick the weekly rent bands you want. The search, area, maximum-rent and bedroom filters above also apply to the diary export.
+                Tick the weekly rent bands you want. Your selected locations ({locationSummary}), search,
+                maximum-rent and bedroom filters above automatically apply to this diary export.
               </p>
 
               <div className="band-actions">
-                <button
-                  type="button"
-                  onClick={() => setSelectedBands(RENT_PRICE_BANDS.map((band) => band.id))}
-                >
+                <button type="button" onClick={() => setSelectedBands(RENT_PRICE_BANDS.map((band) => band.id))}>
                   Select all
                 </button>
-                <button type="button" onClick={() => setSelectedBands([])}>
-                  Clear all
-                </button>
+                <button type="button" onClick={() => setSelectedBands([])}>Clear all</button>
               </div>
 
               <div className="price-band-grid" aria-label="Rental price-band filters">
@@ -711,11 +817,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
                       key={band.id}
                       className={`price-band price-band-check ${checked ? "selected" : ""} ${band.count ? "has-results" : "empty"}`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleBand(band.id)}
-                      />
+                      <input type="checkbox" checked={checked} onChange={() => toggleBand(band.id)} />
                       <span className="price-band-copy">
                         <strong>{band.label}</strong>
                         <span>{band.count} found</span>
@@ -739,9 +841,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
                 onClick={() => void exportDiary()}
                 disabled={exporting || diaryRentals.length === 0}
               >
-                {exporting
-                  ? "Reading listings & creating diary…"
-                  : `Download ${diaryRentals.length || ""} matching listings`}
+                {exporting ? "Creating diary…" : `Download ${diaryRentals.length || ""} matching listings`}
               </button>
               <span className="export-count">
                 {diaryRentals.length} listings selected · {diaryPages} Word {diaryPages === 1 ? "page" : "pages"} · {representedBands} price bands represented
@@ -779,57 +879,6 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
             <span>Try widening the filters or refresh the feed.</span>
           </div>
         )}
-
-        {data && (
-          <section className="sources-panel">
-            <div>
-              <h2>Listing coverage</h2>
-              <p>{activeSourceCount} active sources. Each feed is isolated so one failure does not break the whole search.</p>
-            </div>
-            <div className="source-list">
-              {data.sources.map((source) => (
-                <div key={source.source} className="source-row">
-                  <span
-                    className={`source-dot ${source.ok ? "ok" : source.configured ? "bad" : "off"}`}
-                  />
-                  <strong>{source.source}</strong>
-                  <span>{source.configured ? `${source.count} found` : "not auto-connected"}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="directory-panel">
-          <div className="directory-heading">
-            <div>
-              <h2>More rental sources</h2>
-              <p>
-                Major sites that are not automatically connected remain one tap away. API or permission-only sources stay disabled until a permitted integration is available.
-              </p>
-            </div>
-            <span>{rentalSourceDirectory.length} sources</span>
-          </div>
-
-          <div className="directory-grid">
-            {rentalSourceDirectory.map((source) => (
-              <a
-                key={source.name}
-                href={source.url}
-                target="_blank"
-                rel="noreferrer"
-                className="directory-card"
-              >
-                <div className="directory-card-top">
-                  <strong>{source.name}</strong>
-                  <span className={`access-pill ${source.access}`}>{accessLabel(source.access)}</span>
-                </div>
-                <p>{source.note}</p>
-                <span className="directory-link">Open rentals ↗</span>
-              </a>
-            ))}
-          </div>
-        </section>
       </section>
     </main>
   );
