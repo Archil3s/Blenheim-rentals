@@ -35,14 +35,17 @@ function safeFirstSeenMap(): FirstSeenMap {
     const parsed = JSON.parse(localStorage.getItem(FIRST_SEEN_KEY) ?? "{}") as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
 
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        ([id, value]) =>
-          Boolean(id) &&
-          typeof value === "string" &&
-          !Number.isNaN(new Date(value).getTime()),
-      ),
-    );
+    const valid: FirstSeenMap = {};
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (
+        id &&
+        typeof value === "string" &&
+        !Number.isNaN(new Date(value).getTime())
+      ) {
+        valid[id] = value;
+      }
+    }
+    return valid;
   } catch {
     return {};
   }
