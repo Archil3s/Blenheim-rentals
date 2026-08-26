@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { GroceriesResponse, GroceryListing } from "@/lib/groceries/types";
+import type { KetoGroup } from "@/lib/groceries/keto";
 
 const money = new Intl.NumberFormat("en-NZ", {
   style: "currency",
@@ -19,12 +20,18 @@ type QuickSearch = {
   query: string;
 };
 
+type KetoFilter = {
+  id: KetoGroup;
+  label: string;
+  emoji: string;
+};
+
 const QUICK_SEARCHES: QuickSearch[] = [
   { id: "all", label: "All", emoji: "🛒", query: "" },
   { id: "meat", label: "Meat", emoji: "🥩", query: "meat" },
   { id: "chicken", label: "Chicken", emoji: "🍗", query: "chicken" },
   { id: "cheese", label: "Cheese", emoji: "🧀", query: "cheese" },
-  { id: "keto", label: "Keto", emoji: "🥑", query: "keto" },
+  { id: "keto", label: "Keto", emoji: "🥑", query: "" },
   { id: "eggs", label: "Eggs", emoji: "🥚", query: "eggs" },
   { id: "dairy", label: "Dairy", emoji: "🥛", query: "dairy" },
   { id: "vegetables", label: "Vegetables", emoji: "🥦", query: "vegetables" },
@@ -32,6 +39,18 @@ const QUICK_SEARCHES: QuickSearch[] = [
   { id: "pantry", label: "Pantry", emoji: "🥫", query: "pantry" },
   { id: "frozen", label: "Frozen", emoji: "❄️", query: "frozen" },
   { id: "drinks", label: "Drinks", emoji: "🥤", query: "drinks" },
+];
+
+const KETO_FILTERS: KetoFilter[] = [
+  { id: "all", label: "All Keto", emoji: "🥑" },
+  { id: "meat", label: "Meat", emoji: "🥩" },
+  { id: "seafood", label: "Seafood", emoji: "🐟" },
+  { id: "eggs", label: "Eggs", emoji: "🥚" },
+  { id: "cheese", label: "Cheese", emoji: "🧀" },
+  { id: "dairy", label: "Cream & Butter", emoji: "🧈" },
+  { id: "veg", label: "Low-carb Veg", emoji: "🥦" },
+  { id: "nuts", label: "Nuts & Seeds", emoji: "🌰" },
+  { id: "fats", label: "Oils & Fats", emoji: "🫒" },
 ];
 
 function freshness(value?: string | null) {
@@ -85,6 +104,7 @@ export function GroceriesDashboard() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [activeQuickSearch, setActiveQuickSearch] = useState("all");
+  const [ketoGroup, setKetoGroup] = useState<KetoGroup>("all");
   const [location, setLocation] = useState("Blenheim");
   const [category, setCategory] = useState("all");
   const [chain, setChain] = useState("all");
@@ -94,12 +114,22 @@ export function GroceriesDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const ketoMode = activeQuickSearch === "keto";
+
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    fetch(`/api/groceries?q=${encodeURIComponent(submittedQuery)}&location=${encodeURIComponent(location)}`, {
+    const params = new URLSearchParams({ location });
+    if (ketoMode) {
+      params.set("mode", "keto");
+      params.set("ketoGroup", ketoGroup);
+    } else if (submittedQuery) {
+      params.set("q", submittedQuery);
+    }
+
+    fetch(`/api/groceries?${params.toString()}`, {
       signal: controller.signal,
       cache: "no-store",
     })
@@ -115,7 +145,7 @@ export function GroceriesDashboard() {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [submittedQuery, location]);
+  }, [submittedQuery, location, ketoMode, ketoGroup]);
 
   const categories = useMemo(() => {
     return Array.from(new Set((data?.listings ?? []).map((item) => item.category).filter((value): value is string => Boolean(value)))).sort();
@@ -155,6 +185,13 @@ export function GroceriesDashboard() {
     setSubmittedQuery(item.query);
     setCategory("all");
     setChain("all");
+    if (item.id === "keto") setKetoGroup("all");
+  }
+
+  function runKetoFilter(group: KetoGroup) {
+    setKetoGroup(group);
+    setCategory("all");
+    setChain("all");
   }
 
   return (
@@ -165,46 +202,34 @@ export function GroceriesDashboard() {
         <p style={{ margin: 0, color: "#66756c", maxWidth: 760 }}>Tap a food group or search for anything. Compare current observed prices across Blenheim supermarkets.</p>
       </header>
 
-      <nav
-        aria-label="Quick supermarket searches"
-        style={{
-          display: "flex",
-          gap: 9,
-          overflowX: "auto",
-          padding: "4px 2px 12px",
-          marginBottom: 10,
-          WebkitOverflowScrolling: "touch",
-          scrollbarWidth: "thin",
-        }}
-      >
+      <nav aria-label="Quick supermarket searches" style={{ display: "flex", gap: 9, overflowX: "auto", padding: "4px 2px 12px", marginBottom: 10, WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
         {QUICK_SEARCHES.map((item) => {
           const active = activeQuickSearch === item.id;
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => runQuickSearch(item)}
-              aria-pressed={active}
-              style={{
-                flex: "0 0 auto",
-                minHeight: 46,
-                padding: "0 15px",
-                border: active ? "2px solid #173f2d" : "1px solid #d3ddd6",
-                borderRadius: 999,
-                background: active ? "#173f2d" : "#fff",
-                color: active ? "#fff" : "#304c3b",
-                fontWeight: 800,
-                fontSize: 14,
-                cursor: "pointer",
-                boxShadow: active ? "0 6px 16px rgba(23,63,45,.16)" : "none",
-              }}
-            >
+            <button key={item.id} type="button" onClick={() => runQuickSearch(item)} aria-pressed={active} style={{ flex: "0 0 auto", minHeight: 46, padding: "0 15px", border: active ? "2px solid #173f2d" : "1px solid #d3ddd6", borderRadius: 999, background: active ? "#173f2d" : "#fff", color: active ? "#fff" : "#304c3b", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: active ? "0 6px 16px rgba(23,63,45,.16)" : "none" }}>
               <span aria-hidden="true" style={{ marginRight: 7 }}>{item.emoji}</span>
               {item.label}
             </button>
           );
         })}
       </nav>
+
+      {ketoMode && (
+        <section style={{ margin: "2px 0 16px", padding: 14, borderRadius: 16, background: "#eef7ef", border: "1px solid #cfe1d1" }}>
+          <div style={{ fontWeight: 900, color: "#204d32", marginBottom: 10 }}>🥑 Keto foods</div>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+            {KETO_FILTERS.map((filter) => {
+              const active = ketoGroup === filter.id;
+              return (
+                <button key={filter.id} type="button" onClick={() => runKetoFilter(filter.id)} aria-pressed={active} style={{ flex: "0 0 auto", minHeight: 42, padding: "0 13px", borderRadius: 999, border: active ? "2px solid #245a36" : "1px solid #bfd3c3", background: active ? "#245a36" : "#fff", color: active ? "#fff" : "#2c5137", fontWeight: 800, cursor: "pointer" }}>
+                  <span aria-hidden="true" style={{ marginRight: 6 }}>{filter.emoji}</span>{filter.label}
+                </button>
+              );
+            })}
+          </div>
+          <small style={{ display: "block", marginTop: 10, color: "#5f7665" }}>Keto mode classifies likely low-carb foods from the supermarket catalogue and removes obvious high-carb products. Nutrition panels are not available for every listing, so processed foods should still be checked.</small>
+        </section>
+      )}
 
       <form onSubmit={search} style={{ display: "grid", gridTemplateColumns: "minmax(220px,2fr) repeat(3,minmax(150px,1fr))", gap: 10, padding: 14, border: "1px solid #dce5df", borderRadius: 18, background: "#f8fbf9" }}>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search milk, chicken, mince, cheese…" style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 13px", fontSize: 16 }} />
@@ -233,13 +258,13 @@ export function GroceriesDashboard() {
         <label style={{ display: "flex", alignItems: "center", gap: 7, color: "#44564a", fontWeight: 700 }}>
           <input type="checkbox" checked={promoOnly} onChange={(event) => setPromoOnly(event.target.checked)} /> Specials only
         </label>
-        <span style={{ marginLeft: "auto", color: "#68776e" }}>{listings.length} prices</span>
+        <span style={{ marginLeft: "auto", color: "#68776e" }}>{listings.length} {ketoMode ? "keto " : ""}prices</span>
       </div>
 
-      {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>Loading supermarket prices…</div>}
+      {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>{ketoMode ? "Finding keto foods and prices…" : "Loading supermarket prices…"}</div>}
       {error && <div style={{ padding: 18, borderRadius: 14, background: "#fff1ef", color: "#8a2922" }}>{error}</div>}
       {!loading && !error && listings.length === 0 && (
-        <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>No matching prices found. Try another tab or search for a specific item such as mince, bacon, cheese or eggs.</div>
+        <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>{ketoMode ? "No likely keto items were found for this filter." : "No matching prices found. Try another tab or search for a specific item such as mince, bacon, cheese or eggs."}</div>
       )}
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
