@@ -43,11 +43,25 @@ const CARB_RULES: Array<[RegExp, number]> = [
   [/(cheese)/i, 2],
 ];
 
+const OBVIOUS_NON_CARNIVORE_PATTERNS = [
+  /\b(?:fries?|french fries|wedges?|hash browns?|rosti|tater(?:s| tots?)?|potato|kumara)\b/i,
+  /\b(?:chips?|crisps?|croquettes?|nuggets?|fish fingers?|sausage rolls?)\b/i,
+  /\b(?:bread|cracker|biscuit|cookie|cake|cereal|rice|pasta|noodle|flour|pizza|pie|pastry)\b/i,
+  /\b(?:crumbed|breaded|battered?|sweetened|sugar|syrup|jam|chocolate)\b/i,
+  /\b(?:plant[- ]based|vegan|vegetarian|soy|tofu|bean|lentil|chickpea)\b/i,
+];
+
 function text(item: GroceryListing) {
   return [item.name, item.brand, item.category].filter(Boolean).join(" ");
 }
 
+function isObviouslyNonCarnivore(item: GroceryListing) {
+  const value = text(item);
+  return OBVIOUS_NON_CARNIVORE_PATTERNS.some((pattern) => pattern.test(value));
+}
+
 export function estimateProteinPer100g(item: GroceryListing): number | null {
+  if (isObviouslyNonCarnivore(item)) return null;
   const value = text(item);
   for (const [pattern, protein] of PROTEIN_RULES) {
     if (pattern.test(value)) return protein;
@@ -56,6 +70,7 @@ export function estimateProteinPer100g(item: GroceryListing): number | null {
 }
 
 export function estimateCarbsPer100g(item: GroceryListing): number | null {
+  if (isObviouslyNonCarnivore(item)) return null;
   const value = text(item);
   for (const [pattern, carbs] of CARB_RULES) {
     if (pattern.test(value)) return carbs;
