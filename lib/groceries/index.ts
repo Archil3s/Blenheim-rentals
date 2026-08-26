@@ -16,14 +16,14 @@ export async function getGroceryFeed(
   const ketoGroup = options.ketoGroup ?? "all";
   const listings =
     mode === "keto"
-      ? await fetchKetoGroceries(location, ketoGroup)
+      ? await fetchKetoGroceries(location, ketoGroup, query)
       : await fetchBasktGroceries(query, location);
 
   return {
     listings,
     checkedAt: new Date().toISOString(),
     source: "Baskt",
-    query: mode === "keto" ? `keto:${ketoGroup}` : query,
+    query: mode === "keto" ? `carnivore:${ketoGroup}:${query}` : query,
     location,
   };
 }
