@@ -1,289 +1,190 @@
 import type { GroceryListing } from "./types";
 
-const BASKT_MCP = "https://baskt.nz/api/mcp";
-const PROTOCOL_VERSION = "2025-11-25";
+const BASKT_API = "https://baskt.nz/api/v1";
 
-type JsonObject = Record<string, unknown>;
+type BasktItem = {
+  id: string;
+  chain?: string | null;
+  name?: string | null;
+  brand?: string | null;
+  packSize?: string | null;
+  category?: string | null;
+};
 
-type McpTool = {
-  name?: string;
-  inputSchema?: {
-    properties?: Record<string, unknown>;
+type BasktPrice = {
+  itemId: string;
+  locationId: string;
+  priceCents?: number | null;
+  unitPriceCents?: number | null;
+  unitMeasure?: string | null;
+  promoFlag?: boolean | null;
+  promoLabel?: string | null;
+  observedAt?: string | null;
+};
+
+type BasktLocation = {
+  id: string;
+  chain?: string | null;
+  slug?: string | null;
+  name?: string | null;
+  region?: string | null;
+  address?: string | null;
+  active?: boolean | null;
+};
+
+type ItemsResponse = {
+  data?: {
+    items?: BasktItem[];
+    latestPrices?: BasktPrice[];
   };
 };
 
-function isObject(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function text(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function number(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function first(obj: JsonObject, keys: string[]) {
-  for (const key of keys) {
-    if (obj[key] != null) return obj[key];
-  }
-  return null;
-}
-
-function parseMcpPayload(raw: string): unknown {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const events = trimmed
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice(5).trim())
-      .filter(Boolean);
-
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      try {
-        return JSON.parse(events[index]);
-      } catch {
-        // Continue looking for the most recent JSON event.
-      }
-    }
-  }
-
-  return null;
-}
-
-async function mcpRequest(body: JsonObject, sessionId?: string | null) {
-  const headers: Record<string, string> = {
-    Accept: "application/json, text/event-stream",
-    "Content-Type": "application/json",
+type LocationsResponse = {
+  data?: {
+    locations?: BasktLocation[];
+    pagination?: {
+      nextOffset?: number | null;
+    };
   };
-  if (sessionId) headers["Mcp-Session-Id"] = sessionId;
+};
 
-  const response = await fetch(BASKT_MCP, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
+function chainLabel(value?: string | null) {
+  const key = (value ?? "").toLowerCase();
+  const labels: Record<string, string> = {
+    countdown: "Woolworths",
+    woolworths: "Woolworths",
+    paknsave: "PAK'nSAVE",
+    "pak'n'save": "PAK'nSAVE",
+    newworld: "New World",
+    "new-world": "New World",
+    freshchoice: "Fresh Choice",
+    "fresh-choice": "Fresh Choice",
+    supervalue: "SuperValue",
+    farro: "Farro",
+    thewarehouse: "The Warehouse",
+    "the-warehouse": "The Warehouse",
+  };
+  return labels[key] ?? value ?? "Supermarket";
+}
+
+async function fetchJson<T>(url: URL): Promise<T> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Blenheim-Price-Finder/1.0",
+    },
     cache: "no-store",
   });
 
-  const raw = await response.text();
   if (!response.ok) {
-    throw new Error(`Baskt MCP returned ${response.status}: ${raw.slice(0, 180)}`);
+    const body = await response.text();
+    throw new Error(`Baskt returned ${response.status}: ${body.slice(0, 180)}`);
   }
 
-  return {
-    payload: parseMcpPayload(raw),
-    sessionId: response.headers.get("mcp-session-id") ?? sessionId ?? null,
-  };
+  return (await response.json()) as T;
 }
 
-async function initialiseMcp() {
-  const initial = await mcpRequest({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: {
-        name: "blenheim-price-finder",
-        version: "1.0.0",
-      },
-    },
-  });
+async function fetchLocations() {
+  const locations: BasktLocation[] = [];
+  let offset = 0;
 
-  await mcpRequest(
-    {
-      jsonrpc: "2.0",
-      method: "notifications/initialized",
-      params: {},
-    },
-    initial.sessionId,
-  );
+  for (let page = 0; page < 4; page += 1) {
+    const url = new URL(`${BASKT_API}/locations`);
+    url.searchParams.set("countryCode", "NZ");
+    url.searchParams.set("vertical", "GROCERY");
+    url.searchParams.set("active", "true");
+    url.searchParams.set("limit", "250");
+    url.searchParams.set("offset", String(offset));
 
-  return initial.sessionId;
-}
+    const payload = await fetchJson<LocationsResponse>(url);
+    const batch = payload.data?.locations ?? [];
+    locations.push(...batch);
 
-function toolList(payload: unknown): McpTool[] {
-  if (!isObject(payload)) return [];
-  const result = isObject(payload.result) ? payload.result : null;
-  return Array.isArray(result?.tools) ? (result.tools as McpTool[]) : [];
-}
-
-function pickProperty(properties: Record<string, unknown>, candidates: string[]) {
-  return candidates.find((candidate) => Object.prototype.hasOwnProperty.call(properties, candidate));
-}
-
-function buildSearchArguments(tool: McpTool, query: string, location: string) {
-  const properties = tool.inputSchema?.properties ?? {};
-  const args: Record<string, unknown> = {};
-
-  const queryKey = pickProperty(properties, ["query", "q", "search", "term", "item", "name"]);
-  if (queryKey && query.trim()) args[queryKey] = query.trim();
-
-  const locationKey = pickProperty(properties, ["location", "region", "city", "area"]);
-  if (locationKey && location.trim()) args[locationKey] = location.trim();
-
-  const verticalKey = pickProperty(properties, ["vertical", "type"]);
-  if (verticalKey) args[verticalKey] = "grocery";
-
-  const limitKey = pickProperty(properties, ["limit", "count", "top_k", "topK", "max_results"]);
-  if (limitKey) args[limitKey] = 100;
-
-  return args;
-}
-
-function unwrapToolContent(payload: unknown): unknown {
-  if (!isObject(payload)) return payload;
-  const result = isObject(payload.result) ? payload.result : payload;
-
-  if (Array.isArray(result.content)) {
-    for (const entry of result.content) {
-      if (!isObject(entry)) continue;
-      if (entry.structuredContent != null) return entry.structuredContent;
-      if (entry.json != null) return entry.json;
-      const value = text(entry.text);
-      if (value) {
-        try {
-          return JSON.parse(value);
-        } catch {
-          // Keep looking for structured content.
-        }
-      }
-    }
+    const nextOffset = payload.data?.pagination?.nextOffset;
+    if (nextOffset == null || batch.length === 0) break;
+    offset = nextOffset;
   }
 
-  if (result.structuredContent != null) return result.structuredContent;
-  return result;
+  return locations;
 }
 
-function collectCandidateObjects(value: unknown, output: JsonObject[] = []): JsonObject[] {
-  if (Array.isArray(value)) {
-    for (const item of value) collectCandidateObjects(item, output);
-    return output;
+function locationMatches(store: BasktLocation, requested: string) {
+  const haystack = [store.name, store.region, store.address, store.slug]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const target = requested.trim().toLowerCase();
+  if (!target) return true;
+
+  if (target === "blenheim") {
+    return ["blenheim", "springlands", "redwoodtown"].some((term) => haystack.includes(term));
   }
 
-  if (!isObject(value)) return output;
-
-  const hasName = ["name", "product_name", "productName", "title"].some((key) => value[key] != null);
-  const hasPrice = [
-    "price",
-    "current_price",
-    "currentPrice",
-    "latest_price",
-    "latestPrice",
-    "min_price",
-    "minPrice",
-    "lowest_price",
-    "lowestPrice",
-    "cheapest_price",
-    "cheapestPrice",
-  ].some((key) => value[key] != null);
-
-  if (hasName && hasPrice) output.push(value);
-
-  for (const nested of Object.values(value)) {
-    if (Array.isArray(nested) || isObject(nested)) collectCandidateObjects(nested, output);
+  if (target === "marlborough") {
+    return ["marlborough", "blenheim", "springlands", "redwoodtown", "renwick", "picton"].some((term) => haystack.includes(term));
   }
 
-  return output;
-}
-
-function normaliseItem(item: JsonObject, index: number): GroceryListing | null {
-  const name = text(first(item, ["name", "product_name", "productName", "title"]));
-  const price = number(
-    first(item, [
-      "price",
-      "current_price",
-      "currentPrice",
-      "latest_price",
-      "latestPrice",
-      "min_price",
-      "minPrice",
-      "lowest_price",
-      "lowestPrice",
-      "cheapest_price",
-      "cheapestPrice",
-    ]),
-  );
-  if (!name || price == null) return null;
-
-  const chain = text(first(item, ["chain", "retailer", "retailer_name", "retailerName", "banner", "supermarket"])) ?? "Supermarket";
-  const store = text(first(item, ["store", "store_name", "storeName", "location_name", "locationName"])) ?? chain;
-  const idValue = first(item, ["id", "item_id", "itemId", "sku", "gtin"]);
-  const id = text(idValue) ?? `${chain}-${store}-${name}-${index}`;
-
-  let promo: string | null = text(first(item, ["promo", "promotion", "special", "special_text", "specialText"]));
-  if (!promo && first(item, ["on_promo", "onPromo", "is_promo", "isPromo"]) === true) promo = "On promo";
-
-  return {
-    id,
-    name,
-    brand: text(first(item, ["brand", "brand_name", "brandName"])),
-    size: text(first(item, ["size", "pack_size", "packSize", "package_size", "packageSize"])),
-    category: text(first(item, ["category", "category_name", "categoryName", "department"])),
-    chain,
-    store,
-    region: text(first(item, ["region", "area", "city"])),
-    price,
-    unitPrice: number(first(item, ["unit_price", "unitPrice", "price_per_unit", "pricePerUnit", "normalized_price", "normalised_price"])),
-    unitLabel: text(first(item, ["unit_label", "unitLabel", "unit", "price_unit", "priceUnit", "normalized_unit", "normalised_unit"])),
-    promo,
-    imageUrl: text(first(item, ["image_url", "imageUrl", "image", "thumbnail"])),
-    sourceUrl: text(first(item, ["url", "source_url", "sourceUrl", "product_url", "productUrl"])),
-    observedAt: text(first(item, ["observed_at", "observedAt", "checked_at", "checkedAt", "last_checked", "lastChecked"])),
-  };
+  return haystack.includes(target);
 }
 
 export async function fetchBasktGroceries(query: string, location: string) {
-  const sessionId = await initialiseMcp();
+  const allLocations = await fetchLocations();
+  const selectedLocations = allLocations.filter((store) => locationMatches(store, location));
 
-  const listed = await mcpRequest(
-    {
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/list",
-      params: {},
-    },
-    sessionId,
-  );
+  if (selectedLocations.length === 0) {
+    throw new Error(`Baskt has no grocery locations matching ${location}.`);
+  }
 
-  const searchTool = toolList(listed.payload).find((tool) => tool.name === "search_items");
-  if (!searchTool) throw new Error("Baskt search_items tool is unavailable.");
+  const selectedIds = new Set(selectedLocations.map((store) => store.id));
+  const locationById = new Map(selectedLocations.map((store) => [store.id, store]));
 
-  const called = await mcpRequest(
-    {
-      jsonrpc: "2.0",
-      id: 3,
-      method: "tools/call",
-      params: {
-        name: "search_items",
-        arguments: buildSearchArguments(searchTool, query, location),
-      },
-    },
-    listed.sessionId,
-  );
+  const url = new URL(`${BASKT_API}/items`);
+  if (query.trim()) url.searchParams.set("q", query.trim());
+  url.searchParams.set("countryCode", "NZ");
+  url.searchParams.set("vertical", "GROCERY");
+  url.searchParams.set("locationId", [...selectedIds].join(","));
+  url.searchParams.set("limit", "25");
+  url.searchParams.set("offset", "0");
 
-  const content = unwrapToolContent(called.payload);
-  const candidates = collectCandidateObjects(content);
-  const seen = new Set<string>();
+  const payload = await fetchJson<ItemsResponse>(url);
+  const items = payload.data?.items ?? [];
+  const prices = payload.data?.latestPrices ?? [];
+  const itemById = new Map(items.map((item) => [item.id, item]));
 
-  return candidates
-    .map(normaliseItem)
-    .filter((item): item is GroceryListing => item !== null)
-    .filter((item) => {
-      const key = `${item.id}|${item.store}|${item.price}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+  const listings: GroceryListing[] = [];
+
+  for (const price of prices) {
+    if (!selectedIds.has(price.locationId)) continue;
+    if (typeof price.priceCents !== "number" || !Number.isFinite(price.priceCents)) continue;
+
+    const item = itemById.get(price.itemId);
+    if (!item?.name) continue;
+
+    const store = locationById.get(price.locationId);
+    const chain = chainLabel(store?.chain ?? item.chain);
+
+    listings.push({
+      id: `${item.id}-${price.locationId}`,
+      name: item.name,
+      brand: item.brand ?? null,
+      size: item.packSize ?? null,
+      category: item.category ?? null,
+      chain,
+      store: store?.name ?? chain,
+      region: store?.region ?? null,
+      price: price.priceCents / 100,
+      unitPrice:
+        typeof price.unitPriceCents === "number" && Number.isFinite(price.unitPriceCents)
+          ? price.unitPriceCents / 100
+          : null,
+      unitLabel: price.unitMeasure ?? null,
+      promo: price.promoLabel ?? (price.promoFlag ? "On promo" : null),
+      imageUrl: null,
+      sourceUrl: `https://baskt.nz/items/${item.id}`,
+      observedAt: price.observedAt ?? null,
     });
+  }
+
+  return listings.sort((a, b) => a.price - b.price);
 }
