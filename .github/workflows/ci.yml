@@ -18,6 +18,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Diagnose Baskt grocery API
+        run: node scripts/diagnose-baskt.mjs
+        continue-on-error: true
+
       - name: Install dependencies
         run: npm install
 
