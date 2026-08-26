@@ -1,4 +1,4 @@
-import { RentalsDashboard } from "@/components/rentals-dashboard";
+import { AppDashboard } from "@/components/app-dashboard";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://blenheim-rentals.daniel-dutoit.workers.dev";
 
@@ -6,10 +6,10 @@ export default function Home() {
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Rental Finder NZ",
+    name: "Blenheim Finder",
     url: siteUrl,
     description:
-      "Search current regional New Zealand rentals from multiple sources and open the original listing.",
+      "Search current New Zealand rentals and compare latest observed supermarket prices around Blenheim and Marlborough.",
     potentialAction: {
       "@type": "SearchAction",
       target: `${siteUrl}/?q={search_term_string}`,
@@ -23,7 +23,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <RentalsDashboard />
+      <AppDashboard />
     </>
   );
 }
