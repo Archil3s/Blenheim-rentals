@@ -1,73 +1,52 @@
-const MCP = "https://baskt.nz/api/mcp";
-
-async function get(url) {
+async function json(url) {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
-  const text = await response.text();
-  console.log(`\nGET ${url}\nstatus=${response.status} content-type=${response.headers.get("content-type")}`);
-  console.log(text.slice(0, 5000));
+  const body = await response.text();
+  if (!response.ok) throw new Error(`${response.status} ${url}: ${body.slice(0, 300)}`);
+  return JSON.parse(body);
 }
 
-async function post(body, sessionId) {
-  const headers = {
-    Accept: "application/json, text/event-stream",
-    "Content-Type": "application/json",
-  };
-  if (sessionId) headers["Mcp-Session-Id"] = sessionId;
-  const response = await fetch(MCP, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  console.log(`\nPOST ${body.method}\nstatus=${response.status} session=${response.headers.get("mcp-session-id")}`);
-  console.log(text.slice(0, 8000));
-  return { response, text, sessionId: response.headers.get("mcp-session-id") || sessionId };
+const locations = [];
+let offset = 0;
+for (let page = 0; page < 4; page += 1) {
+  const url = new URL("https://baskt.nz/api/v1/locations");
+  url.searchParams.set("countryCode", "NZ");
+  url.searchParams.set("vertical", "GROCERY");
+  url.searchParams.set("active", "true");
+  url.searchParams.set("limit", "250");
+  url.searchParams.set("offset", String(offset));
+  const payload = await json(url);
+  const batch = payload.data?.locations ?? [];
+  locations.push(...batch);
+  const next = payload.data?.pagination?.nextOffset;
+  if (next == null || batch.length === 0) break;
+  offset = next;
 }
 
-await get("https://baskt.nz/api/v1/items?q=cheese&limit=3");
-await get("https://baskt.nz/api/v1/items?q=cheese&region=Blenheim&limit=3");
-await get("https://baskt.nz/api/v1/items?q=cheese&location=Blenheim&limit=3");
-await get("https://baskt.nz/api/v1/locations?q=Blenheim&limit=10");
-
-const init = await post({
-  jsonrpc: "2.0",
-  id: 1,
-  method: "initialize",
-  params: {
-    protocolVersion: "2025-11-25",
-    capabilities: {},
-    clientInfo: { name: "blenheim-price-finder-diagnostic", version: "1.0.0" },
-  },
+const blenheim = locations.filter((store) => {
+  const haystack = [store.name, store.region, store.address, store.slug].filter(Boolean).join(" ").toLowerCase();
+  return ["blenheim", "springlands", "redwoodtown"].some((term) => haystack.includes(term));
 });
 
-await post({ jsonrpc: "2.0", method: "notifications/initialized", params: {} }, init.sessionId);
-const tools = await post({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }, init.sessionId);
+console.log("BLENHEIM LOCATIONS");
+console.log(JSON.stringify(blenheim, null, 2));
 
-let parsed;
-try {
-  parsed = JSON.parse(tools.text);
-} catch {
-  const dataLine = tools.text.split(/\r?\n/).find((line) => line.startsWith("data:"));
-  parsed = dataLine ? JSON.parse(dataLine.slice(5).trim()) : null;
-}
+if (!blenheim.length) throw new Error("No Blenheim locations found");
 
-const searchTool = parsed?.result?.tools?.find((tool) => tool.name === "search_items");
-console.log("\nSEARCH TOOL SCHEMA\n", JSON.stringify(searchTool, null, 2));
+const itemsUrl = new URL("https://baskt.nz/api/v1/items");
+itemsUrl.searchParams.set("q", "cheese");
+itemsUrl.searchParams.set("countryCode", "NZ");
+itemsUrl.searchParams.set("vertical", "GROCERY");
+itemsUrl.searchParams.set("locationId", blenheim.map((store) => store.id).join(","));
+itemsUrl.searchParams.set("limit", "10");
 
-if (searchTool) {
-  const props = searchTool.inputSchema?.properties ?? {};
-  const args = {};
-  if ("q" in props) args.q = "cheese";
-  else if ("query" in props) args.query = "cheese";
-  else if ("search" in props) args.search = "cheese";
-  if ("region" in props) args.region = "Blenheim";
-  else if ("location" in props) args.location = "Blenheim";
-  if ("vertical" in props) args.vertical = "grocery";
-  if ("limit" in props) args.limit = 5;
-  await post({
-    jsonrpc: "2.0",
-    id: 3,
-    method: "tools/call",
-    params: { name: "search_items", arguments: args },
-  }, init.sessionId);
-}
+const itemsPayload = await json(itemsUrl);
+const items = itemsPayload.data?.items ?? [];
+const prices = itemsPayload.data?.latestPrices ?? [];
+const ids = new Set(blenheim.map((store) => store.id));
+const localPrices = prices.filter((price) => ids.has(price.locationId));
+
+console.log("BLENHEIM CHEESE ITEMS", items.length);
+console.log("BLENHEIM CHEESE LOCAL PRICE ROWS", localPrices.length);
+console.log(JSON.stringify({ items: items.slice(0, 5), prices: localPrices.slice(0, 10) }, null, 2));
+
+if (!items.length || !localPrices.length) throw new Error("Baskt returned no Blenheim cheese prices");
