@@ -128,7 +128,7 @@ function locationMatches(store: BasktLocation, requested: string) {
   return haystack.includes(target);
 }
 
-export async function fetchBasktGroceries(query: string, location: string) {
+async function resolveLocations(location: string) {
   const allLocations = await fetchLocations();
   const selectedLocations = allLocations.filter((store) => locationMatches(store, location));
 
@@ -136,6 +136,10 @@ export async function fetchBasktGroceries(query: string, location: string) {
     throw new Error(`Baskt has no grocery locations matching ${location}.`);
   }
 
+  return selectedLocations;
+}
+
+async function fetchListingsForQuery(query: string, selectedLocations: BasktLocation[]) {
   const selectedIds = new Set(selectedLocations.map((store) => store.id));
   const locationById = new Map(selectedLocations.map((store) => [store.id, store]));
 
@@ -151,7 +155,6 @@ export async function fetchBasktGroceries(query: string, location: string) {
   const items = payload.data?.items ?? [];
   const prices = payload.data?.latestPrices ?? [];
   const itemById = new Map(items.map((item) => [item.id, item]));
-
   const listings: GroceryListing[] = [];
 
   for (const price of prices) {
@@ -186,5 +189,28 @@ export async function fetchBasktGroceries(query: string, location: string) {
     });
   }
 
+  return listings;
+}
+
+export async function fetchBasktGroceries(query: string, location: string) {
+  const selectedLocations = await resolveLocations(location);
+  const listings = await fetchListingsForQuery(query, selectedLocations);
   return listings.sort((a, b) => a.price - b.price);
+}
+
+export async function fetchBasktGroceriesMany(queries: string[], location: string) {
+  const selectedLocations = await resolveLocations(location);
+  const uniqueQueries = Array.from(new Set(queries.map((query) => query.trim()).filter(Boolean)));
+
+  const batches = await Promise.all(
+    uniqueQueries.map((query) => fetchListingsForQuery(query, selectedLocations)),
+  );
+
+  const merged = new Map<string, GroceryListing>();
+  for (const item of batches.flat()) {
+    const key = `${item.id}|${item.store}|${item.price}`;
+    if (!merged.has(key)) merged.set(key, item);
+  }
+
+  return [...merged.values()].sort((a, b) => a.price - b.price);
 }
