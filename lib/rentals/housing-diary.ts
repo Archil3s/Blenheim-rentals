@@ -321,7 +321,10 @@ function chunks<T>(values: T[], size: number) {
 }
 
 export async function generateHousingDiary(clientName: string, rentals: Rental[]) {
-  const pages = chunks(rentals, ROWS_PER_PAGE);
+  // Always reserve one final completely blank row after the last automatic
+  // listing so the user can add a manual housing-search entry in Word.
+  const diaryRows: Array<Rental | undefined> = [...rentals, undefined];
+  const pages = chunks(diaryRows, ROWS_PER_PAGE);
   const children: Array<Paragraph | Table> = [];
 
   pages.forEach((pageRentals, pageIndex) => {
