@@ -111,7 +111,7 @@ const NON_FOOD_PRODUCT_TERMS = [
 ];
 
 // Anything here is incompatible with the strict carnivore-keto view or is too
-// ambiguous to classify safely without a full nutrition/ingredient panel.
+// ambiguous to classify safely without a full ingredient/nutrition panel.
 const CARNIVORE_EXCLUDED_TERMS = [
   "bread",
   "cracker",
@@ -282,8 +282,13 @@ function looksCarnivoreKeto(item: GroceryListing) {
   return true;
 }
 
-export async function fetchKetoGroceries(location: string, group: KetoGroup = "all") {
-  const terms = group === "all" ? ALL_TERMS : GROUP_TERMS[group];
+export async function fetchKetoGroceries(
+  location: string,
+  group: KetoGroup = "all",
+  query = "",
+) {
+  const search = query.trim();
+  const terms = search ? [search] : group === "all" ? ALL_TERMS : GROUP_TERMS[group];
   const listings = await fetchBasktGroceriesMany(terms, location);
 
   return listings
