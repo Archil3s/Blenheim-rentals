@@ -139,6 +139,23 @@ const CARNIVORE_EXCLUDED_TERMS = [
   "potato",
   "kumara",
   "corn",
+  "fries",
+  "french fries",
+  "steak cut fries",
+  "steak-cut fries",
+  "wedges",
+  "hash brown",
+  "hash browns",
+  "rosti",
+  "tater",
+  "croquette",
+  "croquettes",
+  "nugget",
+  "nuggets",
+  "fish finger",
+  "fish fingers",
+  "sausage roll",
+  "sausage rolls",
   "pizza",
   "pie",
   "pastry",
@@ -276,8 +293,8 @@ function looksCarnivoreKeto(item: GroceryListing) {
   if (!isHumanFood(item)) return false;
 
   const value = searchable(item);
-  if (!ANIMAL_FOOD_TERMS.some((term) => value.includes(term))) return false;
   if (CARNIVORE_EXCLUDED_TERMS.some((term) => value.includes(term))) return false;
+  if (!ANIMAL_FOOD_TERMS.some((term) => value.includes(term))) return false;
 
   return true;
 }
