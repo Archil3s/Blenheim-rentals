@@ -15,20 +15,25 @@ const money = new Intl.NumberFormat("en-NZ", {
   maximumFractionDigits: 0,
 });
 
+const DIARY_SNAPSHOT_KEY = "rental-finder-housing-diary-snapshot-ids";
+const DIARY_LAST_DOWNLOAD_KEY = "rental-finder-housing-diary-last-download";
+
 type SortOption = "rent-asc" | "rent-desc" | "beds-desc" | "checked-desc";
 
 type RentalsDashboardProps = {
   initialRegion?: string;
 };
 
-function formatCheckedAt(value?: string) {
+function formatCheckedAt(value?: string | null) {
   if (!value) return "Not checked yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not checked yet";
   return new Intl.DateTimeFormat("en-NZ", {
     hour: "numeric",
     minute: "2-digit",
     day: "numeric",
     month: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function DiaryRow({ label, value }: { label: string; value?: string | null }) {
@@ -132,11 +137,15 @@ function RentalPhotos({ rental }: { rental: Rental }) {
 function RentalCard({
   rental,
   saved,
+  isNew,
+  hasDiaryCheckpoint,
   onToggleSaved,
   onShare,
 }: {
   rental: Rental;
   saved: boolean;
+  isNew: boolean;
+  hasDiaryCheckpoint: boolean;
   onToggleSaved: (id: string) => void;
   onShare: (rental: Rental) => void;
 }) {
@@ -151,9 +160,34 @@ function RentalCard({
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rental.address)}`;
 
   return (
-    <article className={`rental-card region-card region-${rentalRegionSlug(rental.region)}`}>
+    <article
+      className={`rental-card region-card region-${rentalRegionSlug(rental.region)}`}
+      style={isNew ? { border: "3px solid #168447", boxShadow: "0 12px 34px rgba(22,132,71,.18)" } : undefined}
+    >
       <RentalPhotos rental={rental} />
       <div className="rental-body">
+        {isNew && (
+          <div
+            role="status"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              marginBottom: 10,
+              padding: "7px 11px",
+              borderRadius: 999,
+              background: "#dff7e8",
+              color: "#0c6131",
+              border: "1px solid #9bd7b2",
+              fontSize: 12,
+              fontWeight: 950,
+              letterSpacing: ".03em",
+            }}
+          >
+            ✨ {hasDiaryCheckpoint ? "NEW SINCE LAST DIARY DOWNLOAD" : "NEW · NOT YET IN A DIARY"}
+          </div>
+        )}
+
         <div className="price-row">
           <strong>{price}</strong>
           <span>{rental.suburb ?? rental.area ?? rental.region ?? "Rental"}</span>
@@ -248,7 +282,11 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
   const [sort, setSort] = useState<SortOption>("rent-asc");
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [newOnly, setNewOnly] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [diaryHistoryReady, setDiaryHistoryReady] = useState(false);
+  const [diarySnapshotIds, setDiarySnapshotIds] = useState<string[]>([]);
+  const [lastDiaryDownloadAt, setLastDiaryDownloadAt] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedBands, setSelectedBands] = useState<string[]>(() =>
     RENT_PRICE_BANDS.map((band) => band.id),
@@ -301,6 +339,18 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     } catch {
       setSavedIds([]);
     }
+
+    try {
+      const storedSnapshot = JSON.parse(localStorage.getItem(DIARY_SNAPSHOT_KEY) ?? "[]") as string[];
+      setDiarySnapshotIds(Array.isArray(storedSnapshot) ? storedSnapshot : []);
+      const lastDownload = localStorage.getItem(DIARY_LAST_DOWNLOAD_KEY);
+      setLastDiaryDownloadAt(lastDownload || null);
+    } catch {
+      setDiarySnapshotIds([]);
+      setLastDiaryDownloadAt(null);
+    }
+
+    setDiaryHistoryReady(true);
     setFiltersReady(true);
   }, [initialLocation, initialLocations]);
 
@@ -325,6 +375,20 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
     window.history.replaceState(null, "", nextUrl);
   }, [filtersReady, initialLocations, maxRent, minBeds, savedOnly, search, selectedLocations, sort]);
+
+  const diarySnapshotSet = useMemo(() => new Set(diarySnapshotIds), [diarySnapshotIds]);
+  const hasDiaryCheckpoint = Boolean(lastDiaryDownloadAt);
+
+  const allNewRentalIds = useMemo(() => {
+    if (!diaryHistoryReady) return new Set<string>();
+    return new Set(
+      (data?.rentals ?? [])
+        .filter((rental) => !diarySnapshotSet.has(rental.id))
+        .map((rental) => rental.id),
+    );
+  }, [data, diaryHistoryReady, diarySnapshotSet]);
+
+  const newCurrentCount = allNewRentalIds.size;
 
   const suburbOptions = useMemo(() => {
     const suburbs = new Set(
@@ -378,11 +442,12 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       const matchesRent = rental.rent == null || rental.rent <= max;
       const matchesBeds = rental.bedrooms == null || rental.bedrooms >= beds;
       const matchesSaved = !savedOnly || savedSet.has(rental.id);
+      const matchesNew = !newOnly || allNewRentalIds.has(rental.id);
       const matchesLocation =
         selectedLocations.length === 0 ||
         selectedLocations.some((location) => locationMatches(rental, location));
 
-      return matchesSearch && matchesRent && matchesBeds && matchesSaved && matchesLocation;
+      return matchesSearch && matchesRent && matchesBeds && matchesSaved && matchesNew && matchesLocation;
     });
 
     return filtered.sort((a, b) => {
@@ -393,18 +458,24 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       }
       return (a.rent ?? Number.MAX_SAFE_INTEGER) - (b.rent ?? Number.MAX_SAFE_INTEGER);
     });
-  }, [data, maxRent, minBeds, savedIds, savedOnly, search, selectedLocations, sort]);
+  }, [allNewRentalIds, data, maxRent, minBeds, newOnly, savedIds, savedOnly, search, selectedLocations, sort]);
 
-  const diaryBands = useMemo(() => priceBandCounts(rentals), [rentals]);
+  const newFilteredRentals = useMemo(
+    () => rentals.filter((rental) => allNewRentalIds.has(rental.id)),
+    [allNewRentalIds, rentals],
+  );
+
+  const diaryBands = useMemo(() => priceBandCounts(newFilteredRentals), [newFilteredRentals]);
   const diaryRentals = useMemo(() => {
     const selected = new Set(selectedBands);
-    return rentals.filter((rental) => {
+    return newFilteredRentals.filter((rental) => {
       const band = rentPriceBandFor(rental.rent);
       return band ? selected.has(band.id) : false;
     });
-  }, [rentals, selectedBands]);
+  }, [newFilteredRentals, selectedBands]);
 
-  const diaryPages = Math.ceil(diaryRentals.length / 7);
+  // The Word generator always adds one empty row after the final rental.
+  const diaryPages = diaryRentals.length > 0 ? Math.ceil((diaryRentals.length + 1) / 7) : 0;
   const representedBands = diaryBands.filter(
     (band) => band.count > 0 && selectedBands.includes(band.id),
   ).length;
@@ -486,6 +557,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     setSelectedLocations(initialLocations);
     setSort("rent-asc");
     setSavedOnly(false);
+    setNewOnly(false);
   }, [initialLocations]);
 
   const toggleBand = useCallback((bandId: string) => {
@@ -497,7 +569,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
   }, []);
 
   const exportDiary = useCallback(async () => {
-    if (diaryRentals.length === 0) return;
+    if (diaryRentals.length === 0 || !data) return;
     setExporting(true);
     setExportError(null);
 
@@ -525,6 +597,18 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+      // A successful download becomes the new checkpoint. Snapshot ALL current
+      // listings, not just the selected rows, so "new" really means added after
+      // this download rather than merely omitted by today's filters.
+      const snapshot = Array.from(new Set(data.rentals.map((rental) => rental.id)));
+      const downloadedAt = new Date().toISOString();
+      localStorage.setItem(DIARY_SNAPSHOT_KEY, JSON.stringify(snapshot));
+      localStorage.setItem(DIARY_LAST_DOWNLOAD_KEY, downloadedAt);
+      setDiarySnapshotIds(snapshot);
+      setLastDiaryDownloadAt(downloadedAt);
+      setNewOnly(false);
+      flash(`${diaryRentals.length} new ${diaryRentals.length === 1 ? "listing" : "listings"} added to the diary`);
     } catch (exportFailure) {
       setExportError(
         exportFailure instanceof Error ? exportFailure.message : "Could not create housing diary",
@@ -532,7 +616,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
     } finally {
       setExporting(false);
     }
-  }, [diaryRentals]);
+  }, [data, diaryRentals, flash]);
 
   const locationSummary =
     selectedLocations.length === 0
@@ -561,6 +645,21 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
             <strong>{data?.total ?? 0}</strong>
             <span> current rentals</span>
             {data && <span className="source-summary">· {activeSourceCount} active sources</span>}
+            {diaryHistoryReady && newCurrentCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  padding: "5px 9px",
+                  borderRadius: 999,
+                  background: "#dff7e8",
+                  color: "#0c6131",
+                  border: "1px solid #9bd7b2",
+                  fontWeight: 900,
+                }}
+              >
+                ✨ {newCurrentCount} new {hasDiaryCheckpoint ? "since last diary" : "to diary"}
+              </span>
+            )}
           </div>
           <div className="status-meta">
             <span>Checked {formatCheckedAt(data?.checkedAt)}</span>
@@ -569,6 +668,32 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
             </button>
           </div>
         </div>
+
+        {diaryHistoryReady && (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+              gap: 10,
+              margin: "12px 0 16px",
+              padding: "12px 14px",
+              borderRadius: 14,
+              border: "1px solid #cfe7d8",
+              background: "#f4fbf6",
+              color: "#315b43",
+            }}
+          >
+            <strong>
+              {hasDiaryCheckpoint
+                ? `${newCurrentCount} ${newCurrentCount === 1 ? "house" : "houses"} added since your last housing-diary download.`
+                : "No previous diary checkpoint on this device — current listings are treated as new for the first download."}
+            </strong>
+            <span>
+              {hasDiaryCheckpoint ? `Last diary: ${formatCheckedAt(lastDiaryDownloadAt)}` : "Your first successful download will create the checkpoint."}
+            </span>
+          </div>
+        )}
 
         <section className="search-panel" aria-label="Search rentals">
           <div className="search-panel-heading">
@@ -740,6 +865,15 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
             <button type="button" onClick={saveSearch}>Save search</button>
             <button
               type="button"
+              className={newOnly ? "active" : ""}
+              onClick={() => setNewOnly((value) => !value)}
+              aria-pressed={newOnly}
+              disabled={!diaryHistoryReady}
+            >
+              ✨ New since diary {newCurrentCount ? `(${newCurrentCount})` : ""}
+            </button>
+            <button
+              type="button"
               className={savedOnly ? "active" : ""}
               onClick={() => setSavedOnly((value) => !value)}
               aria-pressed={savedOnly}
@@ -792,14 +926,24 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
         {error && <div className="error-banner">{error}</div>}
 
         <details className="export-disclosure">
-          <summary>Housing diary tools <span>Export filtered rentals to a CMM housing-search diary</span></summary>
+          <summary>
+            Housing diary tools
+            <span>{newFilteredRentals.length} new matching {newFilteredRentals.length === 1 ? "listing" : "listings"} available for the next diary</span>
+          </summary>
           <section className="export-panel" aria-label="Housing diary export">
             <div>
               <p className="export-eyebrow">CMM HOUSING SEARCH DIARY</p>
-              <h2>Choose the price bands to include</h2>
+              <h2>Only new houses are added</h2>
               <p>
-                Tick the weekly rent bands you want. Your selected locations ({locationSummary}), search,
-                maximum-rent and bedroom filters above automatically apply to this diary export.
+                The diary now includes only houses added after your last successful diary download. Your selected locations ({locationSummary}), search,
+                maximum-rent, bedroom and price-band filters still apply.
+              </p>
+              <p style={{ fontWeight: 800, color: newFilteredRentals.length ? "#17663b" : "#68776e" }}>
+                {newFilteredRentals.length
+                  ? `${newFilteredRentals.length} new ${newFilteredRentals.length === 1 ? "listing matches" : "listings match"} your current filters.`
+                  : hasDiaryCheckpoint
+                    ? "No new listings match these filters since the last diary download."
+                    : "No current listings match these filters."}
               </p>
 
               <div className="band-actions">
@@ -809,7 +953,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
                 <button type="button" onClick={() => setSelectedBands([])}>Clear all</button>
               </div>
 
-              <div className="price-band-grid" aria-label="Rental price-band filters">
+              <div className="price-band-grid" aria-label="New rental price-band filters">
                 {diaryBands.map((band) => {
                   const checked = selectedBands.includes(band.id);
                   return (
@@ -820,7 +964,7 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
                       <input type="checkbox" checked={checked} onChange={() => toggleBand(band.id)} />
                       <span className="price-band-copy">
                         <strong>{band.label}</strong>
-                        <span>{band.count} found</span>
+                        <span>{band.count} new</span>
                       </span>
                     </label>
                   );
@@ -830,9 +974,9 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
 
             <div className="export-controls">
               <div className="export-field-list">
-                <strong>Fields filled automatically</strong>
+                <strong>What the download does</strong>
                 <span>
-                  Date checked · Online · Private rental + price · Address · Advertised agent/property manager · Phone/email · Clickable listing link · Notes
+                  Adds only new listings · fills the usual housing-diary fields · ends the Word diary with one completely blank row for a manual housing search.
                 </span>
               </div>
               <button
@@ -841,10 +985,14 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
                 onClick={() => void exportDiary()}
                 disabled={exporting || diaryRentals.length === 0}
               >
-                {exporting ? "Creating diary…" : `Download ${diaryRentals.length || ""} matching listings`}
+                {exporting
+                  ? "Creating diary…"
+                  : diaryRentals.length
+                    ? `Download ${diaryRentals.length} new ${diaryRentals.length === 1 ? "listing" : "listings"}`
+                    : "No new listings to download"}
               </button>
               <span className="export-count">
-                {diaryRentals.length} listings selected · {diaryPages} Word {diaryPages === 1 ? "page" : "pages"} · {representedBands} price bands represented
+                {diaryRentals.length} new selected · {diaryPages} Word {diaryPages === 1 ? "page" : "pages"} including the blank row · {representedBands} price bands represented
               </span>
               {exportError && <span className="export-error">{exportError}</span>}
             </div>
@@ -854,7 +1002,10 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
         <div className="feed-heading">
           <div>
             <h2>Available homes</h2>
-            <p>{rentals.length} matching your filters</p>
+            <p>
+              {rentals.length} matching your filters
+              {diaryHistoryReady && newCurrentCount > 0 ? ` · ${newCurrentCount} new since the diary checkpoint` : ""}
+            </p>
           </div>
           <span className="trust-note">Always confirm availability on the original listing.</span>
         </div>
@@ -868,6 +1019,8 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
                 key={rental.id}
                 rental={rental}
                 saved={savedIds.includes(rental.id)}
+                isNew={allNewRentalIds.has(rental.id)}
+                hasDiaryCheckpoint={hasDiaryCheckpoint}
                 onToggleSaved={toggleSaved}
                 onShare={(item) => void shareRental(item)}
               />
@@ -875,8 +1028,8 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
           </section>
         ) : (
           <div className="empty-state">
-            <strong>No matching rentals.</strong>
-            <span>Try widening the filters or refresh the feed.</span>
+            <strong>{newOnly ? "No new matching rentals." : "No matching rentals."}</strong>
+            <span>{newOnly ? "No houses have been added since the last diary checkpoint for these filters." : "Try widening the filters or refresh the feed."}</span>
           </div>
         )}
       </section>
