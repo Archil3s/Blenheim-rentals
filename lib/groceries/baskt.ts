@@ -1,6 +1,20 @@
 import type { GroceryListing } from "./types";
 
-const BASKT_API = "https://baskt.nz/api/v1/items";
+const BASKT_MCP = "https://baskt.nz/api/mcp";
+const PROTOCOL_VERSION = "2025-11-25";
+
+type JsonObject = Record<string, unknown>;
+
+type McpTool = {
+  name?: string;
+  inputSchema?: {
+    properties?: Record<string, unknown>;
+  };
+};
+
+function isObject(value: unknown): value is JsonObject {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -15,63 +29,179 @@ function number(value: unknown): number | null {
   return null;
 }
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function first(obj: Record<string, unknown>, keys: string[]) {
+function first(obj: JsonObject, keys: string[]) {
   for (const key of keys) {
     if (obj[key] != null) return obj[key];
   }
   return null;
 }
 
-function candidateObjects(item: Record<string, unknown>) {
-  return [
-    item,
-    object(item.cheapest),
-    object(item.latest),
-    object(item.price),
-    object(item.latest_price),
-    object(item.latestPrice),
-    object(item.best_price),
-    object(item.bestPrice),
-    object(item.store_price),
-    object(item.storePrice),
-  ].filter((value): value is Record<string, unknown> => Boolean(value));
-}
+function parseMcpPayload(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
 
-function firstFromCandidates(
-  candidates: Record<string, unknown>[],
-  keys: string[],
-): unknown {
-  for (const candidate of candidates) {
-    const value = first(candidate, keys);
-    if (value != null) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const events = trimmed
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      try {
+        return JSON.parse(events[index]);
+      } catch {
+        // Continue looking for the most recent JSON event.
+      }
+    }
   }
+
   return null;
 }
 
-function normaliseItem(raw: unknown, index: number): GroceryListing | null {
-  if (!raw || typeof raw !== "object") return null;
-  const item = raw as Record<string, unknown>;
-  const candidates = candidateObjects(item);
+async function mcpRequest(body: JsonObject, sessionId?: string | null) {
+  const headers: Record<string, string> = {
+    Accept: "application/json, text/event-stream",
+    "Content-Type": "application/json",
+  };
+  if (sessionId) headers["Mcp-Session-Id"] = sessionId;
 
-  const name = text(
-    firstFromCandidates(candidates, [
-      "name",
-      "product_name",
-      "productName",
-      "title",
-      "display_name",
-      "displayName",
-    ]),
+  const response = await fetch(BASKT_MCP, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const raw = await response.text();
+  if (!response.ok) {
+    throw new Error(`Baskt MCP returned ${response.status}: ${raw.slice(0, 180)}`);
+  }
+
+  return {
+    payload: parseMcpPayload(raw),
+    sessionId: response.headers.get("mcp-session-id") ?? sessionId ?? null,
+  };
+}
+
+async function initialiseMcp() {
+  const initial = await mcpRequest({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: {
+        name: "blenheim-price-finder",
+        version: "1.0.0",
+      },
+    },
+  });
+
+  await mcpRequest(
+    {
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+      params: {},
+    },
+    initial.sessionId,
   );
 
+  return initial.sessionId;
+}
+
+function toolList(payload: unknown): McpTool[] {
+  if (!isObject(payload)) return [];
+  const result = isObject(payload.result) ? payload.result : null;
+  return Array.isArray(result?.tools) ? (result.tools as McpTool[]) : [];
+}
+
+function pickProperty(properties: Record<string, unknown>, candidates: string[]) {
+  return candidates.find((candidate) => Object.prototype.hasOwnProperty.call(properties, candidate));
+}
+
+function buildSearchArguments(tool: McpTool, query: string, location: string) {
+  const properties = tool.inputSchema?.properties ?? {};
+  const args: Record<string, unknown> = {};
+
+  const queryKey = pickProperty(properties, ["query", "q", "search", "term", "item", "name"]);
+  if (queryKey && query.trim()) args[queryKey] = query.trim();
+
+  const locationKey = pickProperty(properties, ["location", "region", "city", "area"]);
+  if (locationKey && location.trim()) args[locationKey] = location.trim();
+
+  const verticalKey = pickProperty(properties, ["vertical", "type"]);
+  if (verticalKey) args[verticalKey] = "grocery";
+
+  const limitKey = pickProperty(properties, ["limit", "count", "top_k", "topK", "max_results"]);
+  if (limitKey) args[limitKey] = 100;
+
+  return args;
+}
+
+function unwrapToolContent(payload: unknown): unknown {
+  if (!isObject(payload)) return payload;
+  const result = isObject(payload.result) ? payload.result : payload;
+
+  if (Array.isArray(result.content)) {
+    for (const entry of result.content) {
+      if (!isObject(entry)) continue;
+      if (entry.structuredContent != null) return entry.structuredContent;
+      if (entry.json != null) return entry.json;
+      const value = text(entry.text);
+      if (value) {
+        try {
+          return JSON.parse(value);
+        } catch {
+          // Keep looking for structured content.
+        }
+      }
+    }
+  }
+
+  if (result.structuredContent != null) return result.structuredContent;
+  return result;
+}
+
+function collectCandidateObjects(value: unknown, output: JsonObject[] = []): JsonObject[] {
+  if (Array.isArray(value)) {
+    for (const item of value) collectCandidateObjects(item, output);
+    return output;
+  }
+
+  if (!isObject(value)) return output;
+
+  const hasName = ["name", "product_name", "productName", "title"].some((key) => value[key] != null);
+  const hasPrice = [
+    "price",
+    "current_price",
+    "currentPrice",
+    "latest_price",
+    "latestPrice",
+    "min_price",
+    "minPrice",
+    "lowest_price",
+    "lowestPrice",
+    "cheapest_price",
+    "cheapestPrice",
+  ].some((key) => value[key] != null);
+
+  if (hasName && hasPrice) output.push(value);
+
+  for (const nested of Object.values(value)) {
+    if (Array.isArray(nested) || isObject(nested)) collectCandidateObjects(nested, output);
+  }
+
+  return output;
+}
+
+function normaliseItem(item: JsonObject, index: number): GroceryListing | null {
+  const name = text(first(item, ["name", "product_name", "productName", "title"]));
   const price = number(
-    firstFromCandidates(candidates, [
+    first(item, [
       "price",
       "current_price",
       "currentPrice",
@@ -83,188 +213,77 @@ function normaliseItem(raw: unknown, index: number): GroceryListing | null {
       "lowestPrice",
       "cheapest_price",
       "cheapestPrice",
-      "best_price",
-      "bestPrice",
-      "amount",
     ]),
   );
-
   if (!name || price == null) return null;
 
-  const chain =
-    text(
-      firstFromCandidates(candidates, [
-        "chain",
-        "chain_name",
-        "chainName",
-        "retailer",
-        "retailer_name",
-        "retailerName",
-        "banner",
-        "supermarket",
-      ]),
-    ) ?? "Supermarket";
+  const chain = text(first(item, ["chain", "retailer", "retailer_name", "retailerName", "banner", "supermarket"])) ?? "Supermarket";
+  const store = text(first(item, ["store", "store_name", "storeName", "location_name", "locationName"])) ?? chain;
+  const idValue = first(item, ["id", "item_id", "itemId", "sku", "gtin"]);
+  const id = text(idValue) ?? `${chain}-${store}-${name}-${index}`;
 
-  const store =
-    text(
-      firstFromCandidates(candidates, [
-        "store",
-        "store_name",
-        "storeName",
-        "location_name",
-        "locationName",
-        "location",
-      ]),
-    ) ?? chain;
-
-  const idValue = firstFromCandidates(candidates, [
-    "id",
-    "item_id",
-    "itemId",
-    "sku",
-    "gtin",
-  ]);
-  const id = text(idValue) ?? String(idValue ?? `${chain}-${store}-${name}-${index}`);
+  let promo: string | null = text(first(item, ["promo", "promotion", "special", "special_text", "specialText"]));
+  if (!promo && first(item, ["on_promo", "onPromo", "is_promo", "isPromo"]) === true) promo = "On promo";
 
   return {
     id,
     name,
-    brand: text(firstFromCandidates(candidates, ["brand", "brand_name", "brandName"])),
-    size: text(
-      firstFromCandidates(candidates, [
-        "size",
-        "pack_size",
-        "packSize",
-        "package_size",
-        "packageSize",
-        "quantity",
-      ]),
-    ),
-    category: text(
-      firstFromCandidates(candidates, [
-        "category",
-        "category_name",
-        "categoryName",
-        "department",
-        "category_path",
-        "categoryPath",
-      ]),
-    ),
+    brand: text(first(item, ["brand", "brand_name", "brandName"])),
+    size: text(first(item, ["size", "pack_size", "packSize", "package_size", "packageSize"])),
+    category: text(first(item, ["category", "category_name", "categoryName", "department"])),
     chain,
     store,
-    region: text(firstFromCandidates(candidates, ["region", "area", "city"])),
+    region: text(first(item, ["region", "area", "city"])),
     price,
-    unitPrice: number(
-      firstFromCandidates(candidates, [
-        "unit_price",
-        "unitPrice",
-        "price_per_unit",
-        "pricePerUnit",
-        "normalized_price",
-        "normalised_price",
-        "normalizedPrice",
-      ]),
-    ),
-    unitLabel: text(
-      firstFromCandidates(candidates, [
-        "unit_label",
-        "unitLabel",
-        "unit",
-        "price_unit",
-        "priceUnit",
-        "normalized_unit",
-        "normalised_unit",
-      ]),
-    ),
-    promo: text(
-      firstFromCandidates(candidates, [
-        "promo",
-        "promotion",
-        "special",
-        "special_text",
-        "specialText",
-        "promo_text",
-        "promoText",
-      ]),
-    ),
-    imageUrl: text(
-      firstFromCandidates(candidates, [
-        "image_url",
-        "imageUrl",
-        "image",
-        "thumbnail",
-        "thumbnail_url",
-        "thumbnailUrl",
-      ]),
-    ),
-    sourceUrl: text(
-      firstFromCandidates(candidates, [
-        "url",
-        "source_url",
-        "sourceUrl",
-        "product_url",
-        "productUrl",
-        "item_url",
-        "itemUrl",
-      ]),
-    ),
-    observedAt: text(
-      firstFromCandidates(candidates, [
-        "observed_at",
-        "observedAt",
-        "checked_at",
-        "checkedAt",
-        "last_checked",
-        "lastChecked",
-        "updated_at",
-        "updatedAt",
-      ]),
-    ),
+    unitPrice: number(first(item, ["unit_price", "unitPrice", "price_per_unit", "pricePerUnit", "normalized_price", "normalised_price"])),
+    unitLabel: text(first(item, ["unit_label", "unitLabel", "unit", "price_unit", "priceUnit", "normalized_unit", "normalised_unit"])),
+    promo,
+    imageUrl: text(first(item, ["image_url", "imageUrl", "image", "thumbnail"])),
+    sourceUrl: text(first(item, ["url", "source_url", "sourceUrl", "product_url", "productUrl"])),
+    observedAt: text(first(item, ["observed_at", "observedAt", "checked_at", "checkedAt", "last_checked", "lastChecked"])),
   };
 }
 
-function extractItems(payload: unknown): unknown[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== "object") return [];
-
-  const data = payload as Record<string, unknown>;
-  for (const key of ["items", "results", "products", "data"]) {
-    if (Array.isArray(data[key])) return data[key] as unknown[];
-  }
-
-  if (data.data && typeof data.data === "object") {
-    const nested = data.data as Record<string, unknown>;
-    for (const key of ["items", "results", "products", "data"]) {
-      if (Array.isArray(nested[key])) return nested[key] as unknown[];
-    }
-  }
-
-  return [];
-}
-
 export async function fetchBasktGroceries(query: string, location: string) {
-  const params = new URLSearchParams({
-    limit: "100",
-  });
+  const sessionId = await initialiseMcp();
 
-  if (query.trim()) params.set("q", query.trim());
-  if (location.trim()) params.set("location", location.trim());
-
-  const response = await fetch(`${BASKT_API}?${params.toString()}`, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Blenheim-Rentals-Grocery-Comparison/1.0",
+  const listed = await mcpRequest(
+    {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list",
+      params: {},
     },
-    cache: "no-store",
-  });
+    sessionId,
+  );
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Baskt returned ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}`);
-  }
+  const searchTool = toolList(listed.payload).find((tool) => tool.name === "search_items");
+  if (!searchTool) throw new Error("Baskt search_items tool is unavailable.");
 
-  const payload: unknown = await response.json();
-  return extractItems(payload)
+  const called = await mcpRequest(
+    {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "search_items",
+        arguments: buildSearchArguments(searchTool, query, location),
+      },
+    },
+    listed.sessionId,
+  );
+
+  const content = unwrapToolContent(called.payload);
+  const candidates = collectCandidateObjects(content);
+  const seen = new Set<string>();
+
+  return candidates
     .map(normaliseItem)
-    .filter((item): item is GroceryListing => item !== null);
+    .filter((item): item is GroceryListing => item !== null)
+    .filter((item) => {
+      const key = `${item.id}|${item.store}|${item.price}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
