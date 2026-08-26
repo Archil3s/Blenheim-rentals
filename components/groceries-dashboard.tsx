@@ -31,7 +31,7 @@ const QUICK_SEARCHES: QuickSearch[] = [
   { id: "meat", label: "Meat", emoji: "🥩", query: "meat" },
   { id: "chicken", label: "Chicken", emoji: "🍗", query: "chicken" },
   { id: "cheese", label: "Cheese", emoji: "🧀", query: "cheese" },
-  { id: "keto", label: "Keto", emoji: "🥑", query: "" },
+  { id: "keto", label: "Carnivore Keto", emoji: "🥩", query: "" },
   { id: "eggs", label: "Eggs", emoji: "🥚", query: "eggs" },
   { id: "dairy", label: "Dairy", emoji: "🥛", query: "dairy" },
   { id: "vegetables", label: "Vegetables", emoji: "🥦", query: "vegetables" },
@@ -42,15 +42,12 @@ const QUICK_SEARCHES: QuickSearch[] = [
 ];
 
 const KETO_FILTERS: KetoFilter[] = [
-  { id: "all", label: "All Keto", emoji: "🥑" },
+  { id: "all", label: "All Carnivore", emoji: "🥩" },
   { id: "meat", label: "Meat", emoji: "🥩" },
   { id: "seafood", label: "Seafood", emoji: "🐟" },
   { id: "eggs", label: "Eggs", emoji: "🥚" },
   { id: "cheese", label: "Cheese", emoji: "🧀" },
-  { id: "dairy", label: "Cream & Butter", emoji: "🧈" },
-  { id: "veg", label: "Low-carb Veg", emoji: "🥦" },
-  { id: "nuts", label: "Nuts & Seeds", emoji: "🌰" },
-  { id: "fats", label: "Oils & Fats", emoji: "🫒" },
+  { id: "dairy", label: "Butter & Cream", emoji: "🧈" },
 ];
 
 function freshness(value?: string | null) {
@@ -216,7 +213,7 @@ export function GroceriesDashboard() {
 
       {ketoMode && (
         <section style={{ margin: "2px 0 16px", padding: 14, borderRadius: 16, background: "#eef7ef", border: "1px solid #cfe1d1" }}>
-          <div style={{ fontWeight: 900, color: "#204d32", marginBottom: 10 }}>🥑 Keto foods</div>
+          <div style={{ fontWeight: 900, color: "#204d32", marginBottom: 10 }}>🥩 Carnivore Keto</div>
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
             {KETO_FILTERS.map((filter) => {
               const active = ketoGroup === filter.id;
@@ -227,7 +224,7 @@ export function GroceriesDashboard() {
               );
             })}
           </div>
-          <small style={{ display: "block", marginTop: 10, color: "#5f7665" }}>Keto mode classifies likely low-carb foods from the supermarket catalogue and removes obvious high-carb products. Nutrition panels are not available for every listing, so processed foods should still be checked.</small>
+          <small style={{ display: "block", marginTop: 10, color: "#5f7665" }}>Strict animal-based filter: meat, seafood, eggs, cheese, butter, cream and ghee only. Plant foods, nuts, seeds, plant oils, sauces, crumbed foods and obvious high-carb products are excluded.</small>
         </section>
       )}
 
@@ -258,13 +255,13 @@ export function GroceriesDashboard() {
         <label style={{ display: "flex", alignItems: "center", gap: 7, color: "#44564a", fontWeight: 700 }}>
           <input type="checkbox" checked={promoOnly} onChange={(event) => setPromoOnly(event.target.checked)} /> Specials only
         </label>
-        <span style={{ marginLeft: "auto", color: "#68776e" }}>{listings.length} {ketoMode ? "keto " : ""}prices</span>
+        <span style={{ marginLeft: "auto", color: "#68776e" }}>{listings.length} {ketoMode ? "carnivore " : ""}prices</span>
       </div>
 
-      {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>{ketoMode ? "Finding keto foods and prices…" : "Loading supermarket prices…"}</div>}
+      {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>{ketoMode ? "Finding carnivore keto foods and prices…" : "Loading supermarket prices…"}</div>}
       {error && <div style={{ padding: 18, borderRadius: 14, background: "#fff1ef", color: "#8a2922" }}>{error}</div>}
       {!loading && !error && listings.length === 0 && (
-        <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>{ketoMode ? "No likely keto items were found for this filter." : "No matching prices found. Try another tab or search for a specific item such as mince, bacon, cheese or eggs."}</div>
+        <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>{ketoMode ? "No carnivore-keto items were found for this filter." : "No matching prices found. Try another tab or search for a specific item such as mince, bacon, cheese or eggs."}</div>
       )}
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
