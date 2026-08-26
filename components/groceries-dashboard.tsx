@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { GroceriesResponse, GroceryListing } from "@/lib/groceries/types";
 import type { KetoGroup } from "@/lib/groceries/keto";
+import { CARNIVORE_RECIPES, type CarnivoreRecipe } from "@/lib/groceries/carnivore-recipes";
 
 const money = new Intl.NumberFormat("en-NZ", {
   style: "currency",
@@ -12,42 +13,27 @@ const money = new Intl.NumberFormat("en-NZ", {
 });
 
 type SortOption = "price-asc" | "price-desc" | "unit-asc" | "store";
+type ViewMode = "prices" | "meal-prep";
 
 type QuickSearch = {
   id: string;
   label: string;
   emoji: string;
   query: string;
-};
-
-type KetoFilter = {
-  id: KetoGroup;
-  label: string;
-  emoji: string;
+  group: KetoGroup;
 };
 
 const QUICK_SEARCHES: QuickSearch[] = [
-  { id: "all", label: "All", emoji: "🛒", query: "" },
-  { id: "meat", label: "Meat", emoji: "🥩", query: "meat" },
-  { id: "chicken", label: "Chicken", emoji: "🍗", query: "chicken" },
-  { id: "cheese", label: "Cheese", emoji: "🧀", query: "cheese" },
-  { id: "keto", label: "Carnivore Keto", emoji: "🥩", query: "" },
-  { id: "eggs", label: "Eggs", emoji: "🥚", query: "eggs" },
-  { id: "dairy", label: "Dairy", emoji: "🥛", query: "dairy" },
-  { id: "vegetables", label: "Vegetables", emoji: "🥦", query: "vegetables" },
-  { id: "fruit", label: "Fruit", emoji: "🍎", query: "fruit" },
-  { id: "pantry", label: "Pantry", emoji: "🥫", query: "pantry" },
-  { id: "frozen", label: "Frozen", emoji: "❄️", query: "frozen" },
-  { id: "drinks", label: "Drinks", emoji: "🥤", query: "drinks" },
-];
-
-const KETO_FILTERS: KetoFilter[] = [
-  { id: "all", label: "All Carnivore", emoji: "🥩" },
-  { id: "meat", label: "Meat", emoji: "🥩" },
-  { id: "seafood", label: "Seafood", emoji: "🐟" },
-  { id: "eggs", label: "Eggs", emoji: "🥚" },
-  { id: "cheese", label: "Cheese", emoji: "🧀" },
-  { id: "dairy", label: "Butter & Cream", emoji: "🧈" },
+  { id: "all", label: "All Carnivore", emoji: "🥩", query: "", group: "all" },
+  { id: "beef", label: "Beef", emoji: "🥩", query: "beef", group: "meat" },
+  { id: "chicken", label: "Chicken", emoji: "🍗", query: "chicken", group: "meat" },
+  { id: "lamb", label: "Lamb", emoji: "🍖", query: "lamb", group: "meat" },
+  { id: "pork", label: "Pork", emoji: "🥓", query: "pork", group: "meat" },
+  { id: "bacon", label: "Bacon", emoji: "🥓", query: "bacon", group: "meat" },
+  { id: "seafood", label: "Seafood", emoji: "🐟", query: "", group: "seafood" },
+  { id: "eggs", label: "Eggs", emoji: "🥚", query: "", group: "eggs" },
+  { id: "cheese", label: "Cheese", emoji: "🧀", query: "", group: "cheese" },
+  { id: "dairy", label: "Butter & Cream", emoji: "🧈", query: "", group: "dairy" },
 ];
 
 function freshness(value?: string | null) {
@@ -67,7 +53,7 @@ function GroceryCard({ item }: { item: GroceryListing }) {
     <article style={{ border: "1px solid #d9e2dc", borderRadius: 18, background: "white", padding: 18, boxShadow: "0 8px 24px rgba(20,61,42,.07)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
         <div>
-          <div style={{ color: "#52705f", fontSize: 13, fontWeight: 700 }}>{item.category ?? "Groceries"}</div>
+          <div style={{ color: "#52705f", fontSize: 13, fontWeight: 700 }}>{item.category ?? "Carnivore food"}</div>
           <h2 style={{ margin: "5px 0 4px", fontSize: 20, color: "#173f2d" }}>{item.name}</h2>
           <div style={{ color: "#66756c", fontSize: 14 }}>
             {[item.brand, item.size].filter(Boolean).join(" · ") || item.chain}
@@ -97,7 +83,45 @@ function GroceryCard({ item }: { item: GroceryListing }) {
   );
 }
 
+function RecipeCard({ recipe, onShop }: { recipe: CarnivoreRecipe; onShop: (query: string) => void }) {
+  return (
+    <article style={{ border: "1px solid #ded7cc", borderRadius: 18, background: "#fffdfa", padding: 18, boxShadow: "0 8px 24px rgba(74,52,30,.06)" }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <span aria-hidden="true" style={{ fontSize: 30 }}>{recipe.emoji}</span>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: "0 0 5px", color: "#4b3322", fontSize: 21 }}>{recipe.title}</h2>
+          <div style={{ color: "#7a6859", fontSize: 13, fontWeight: 700 }}>
+            {recipe.prepMinutes} min · {recipe.portions} portions · {recipe.freezerFriendly ? "Freezer friendly" : "Fridge prep"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 15 }}>
+        <strong style={{ color: "#5a3c28" }}>Ingredients</strong>
+        <ul style={{ margin: "7px 0 0", paddingLeft: 20, color: "#655447", lineHeight: 1.55 }}>
+          {recipe.ingredients.map((ingredient) => <li key={ingredient}>{ingredient}</li>)}
+        </ul>
+      </div>
+
+      <details style={{ marginTop: 14 }}>
+        <summary style={{ cursor: "pointer", color: "#5a3c28", fontWeight: 800 }}>Prep method</summary>
+        <ol style={{ margin: "8px 0 0", paddingLeft: 22, color: "#655447", lineHeight: 1.55 }}>
+          {recipe.method.map((step) => <li key={step} style={{ marginBottom: 5 }}>{step}</li>)}
+        </ol>
+      </details>
+
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginTop: 16, paddingTop: 14, borderTop: "1px solid #eee7de", flexWrap: "wrap" }}>
+        <button type="button" onClick={() => onShop(recipe.shopQuery)} style={{ minHeight: 40, padding: "0 13px", border: 0, borderRadius: 10, background: "#4d3322", color: "white", fontWeight: 800, cursor: "pointer" }}>
+          Find ingredients
+        </button>
+        <a href={recipe.sourceUrl} target="_blank" rel="noreferrer" style={{ color: "#77583f", fontSize: 13, fontWeight: 700 }}>{recipe.sourceLabel} ↗</a>
+      </div>
+    </article>
+  );
+}
+
 export function GroceriesDashboard() {
+  const [view, setView] = useState<ViewMode>("prices");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [activeQuickSearch, setActiveQuickSearch] = useState("all");
@@ -111,20 +135,13 @@ export function GroceriesDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const ketoMode = activeQuickSearch === "keto";
-
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    const params = new URLSearchParams({ location });
-    if (ketoMode) {
-      params.set("mode", "keto");
-      params.set("ketoGroup", ketoGroup);
-    } else if (submittedQuery) {
-      params.set("q", submittedQuery);
-    }
+    const params = new URLSearchParams({ location, ketoGroup });
+    if (submittedQuery) params.set("q", submittedQuery);
 
     fetch(`/api/groceries?${params.toString()}`, {
       signal: controller.signal,
@@ -132,17 +149,17 @@ export function GroceriesDashboard() {
     })
       .then(async (response) => {
         const payload = (await response.json()) as GroceriesResponse;
-        if (!response.ok) throw new Error(payload.error ?? "Unable to load supermarket prices.");
+        if (!response.ok) throw new Error(payload.error ?? "Unable to load carnivore supermarket prices.");
         setData(payload);
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setError(reason instanceof Error ? reason.message : "Unable to load supermarket prices.");
+        setError(reason instanceof Error ? reason.message : "Unable to load carnivore supermarket prices.");
       })
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [submittedQuery, location, ketoMode, ketoGroup]);
+  }, [submittedQuery, location, ketoGroup]);
 
   const categories = useMemo(() => {
     return Array.from(new Set((data?.listings ?? []).map((item) => item.category).filter((value): value is string => Boolean(value)))).sort();
@@ -168,108 +185,125 @@ export function GroceriesDashboard() {
     });
   }, [data, category, chain, promoOnly, sort]);
 
+  const uniqueItemCount = useMemo(() => {
+    return new Set(listings.map((item) => [item.name, item.brand ?? "", item.size ?? ""].join("|"))).size;
+  }, [listings]);
+
   function search(event: FormEvent) {
     event.preventDefault();
     const nextQuery = query.trim();
     setActiveQuickSearch("custom");
+    setKetoGroup("all");
     setCategory("all");
     setSubmittedQuery(nextQuery);
+    setView("prices");
   }
 
   function runQuickSearch(item: QuickSearch) {
     setActiveQuickSearch(item.id);
     setQuery(item.query);
     setSubmittedQuery(item.query);
+    setKetoGroup(item.group);
     setCategory("all");
     setChain("all");
-    if (item.id === "keto") setKetoGroup("all");
+    setView("prices");
   }
 
-  function runKetoFilter(group: KetoGroup) {
-    setKetoGroup(group);
+  function shopRecipe(searchQuery: string) {
+    setView("prices");
+    setActiveQuickSearch("custom");
+    setQuery(searchQuery);
+    setSubmittedQuery(searchQuery);
+    setKetoGroup("all");
     setCategory("all");
     setChain("all");
   }
 
   return (
     <main style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 18px 60px" }}>
-      <header style={{ marginBottom: 18 }}>
-        <p style={{ margin: 0, color: "#4e6f5b", fontWeight: 800 }}>BLENHEIM PRICE FINDER</p>
-        <h1 style={{ margin: "5px 0 6px", color: "#143d2a", fontSize: "clamp(2rem,5vw,3.6rem)" }}>Supermarket prices</h1>
-        <p style={{ margin: 0, color: "#66756c", maxWidth: 760 }}>Tap a food group or search for anything. Compare current observed prices across Blenheim supermarkets.</p>
+      <header style={{ marginBottom: 16 }}>
+        <p style={{ margin: 0, color: "#4e6f5b", fontWeight: 800 }}>BLENHEIM CARNIVORE PRICE FINDER</p>
+        <h1 style={{ margin: "5px 0 6px", color: "#143d2a", fontSize: "clamp(2rem,5vw,3.6rem)" }}>Carnivore Keto</h1>
+        <p style={{ margin: 0, color: "#66756c", maxWidth: 780 }}>Only animal-based keto/carnivore human foods are shown: meat, seafood, eggs, cheese, butter, cream and ghee. Every search is filtered through the same strict classifier.</p>
       </header>
 
-      <nav aria-label="Quick supermarket searches" style={{ display: "flex", gap: 9, overflowX: "auto", padding: "4px 2px 12px", marginBottom: 10, WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
-        {QUICK_SEARCHES.map((item) => {
-          const active = activeQuickSearch === item.id;
-          return (
-            <button key={item.id} type="button" onClick={() => runQuickSearch(item)} aria-pressed={active} style={{ flex: "0 0 auto", minHeight: 46, padding: "0 15px", border: active ? "2px solid #173f2d" : "1px solid #d3ddd6", borderRadius: 999, background: active ? "#173f2d" : "#fff", color: active ? "#fff" : "#304c3b", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: active ? "0 6px 16px rgba(23,63,45,.16)" : "none" }}>
-              <span aria-hidden="true" style={{ marginRight: 7 }}>{item.emoji}</span>
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
+      <div style={{ display: "inline-flex", gap: 6, padding: 5, borderRadius: 14, background: "#edf3ef", marginBottom: 16 }}>
+        <button type="button" onClick={() => setView("prices")} style={{ minHeight: 42, padding: "0 16px", border: 0, borderRadius: 10, background: view === "prices" ? "#173f2d" : "transparent", color: view === "prices" ? "#fff" : "#365243", fontWeight: 900, cursor: "pointer" }}>🥩 Prices</button>
+        <button type="button" onClick={() => setView("meal-prep")} style={{ minHeight: 42, padding: "0 16px", border: 0, borderRadius: 10, background: view === "meal-prep" ? "#173f2d" : "transparent", color: view === "meal-prep" ? "#fff" : "#365243", fontWeight: 900, cursor: "pointer" }}>🍱 Meal Prep</button>
+      </div>
 
-      {ketoMode && (
-        <section style={{ margin: "2px 0 16px", padding: 14, borderRadius: 16, background: "#eef7ef", border: "1px solid #cfe1d1" }}>
-          <div style={{ fontWeight: 900, color: "#204d32", marginBottom: 10 }}>🥩 Carnivore Keto</div>
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
-            {KETO_FILTERS.map((filter) => {
-              const active = ketoGroup === filter.id;
+      {view === "meal-prep" ? (
+        <>
+          <section style={{ padding: 16, border: "1px solid #e3d8ca", borderRadius: 16, background: "#fffaf4", marginBottom: 16 }}>
+            <h2 style={{ margin: "0 0 6px", color: "#4b3322" }}>Carnivore meal-prep ideas</h2>
+            <p style={{ margin: 0, color: "#735f4f", lineHeight: 1.5 }}>These are simplified original recipes built from recurring carnivore/keto meal-prep patterns found across Reddit and YouTube: beef-and-egg batches, casseroles, freezer meatballs, bulk patties, slow-cooked roast and bacon-wrapped beef rolls.</p>
+          </section>
+          <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(310px,1fr))", gap: 14 }}>
+            {CARNIVORE_RECIPES.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} onShop={shopRecipe} />)}
+          </section>
+        </>
+      ) : (
+        <>
+          <nav aria-label="Carnivore food filters" style={{ display: "flex", gap: 9, overflowX: "auto", padding: "4px 2px 12px", marginBottom: 8, WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
+            {QUICK_SEARCHES.map((item) => {
+              const active = activeQuickSearch === item.id;
               return (
-                <button key={filter.id} type="button" onClick={() => runKetoFilter(filter.id)} aria-pressed={active} style={{ flex: "0 0 auto", minHeight: 42, padding: "0 13px", borderRadius: 999, border: active ? "2px solid #245a36" : "1px solid #bfd3c3", background: active ? "#245a36" : "#fff", color: active ? "#fff" : "#2c5137", fontWeight: 800, cursor: "pointer" }}>
-                  <span aria-hidden="true" style={{ marginRight: 6 }}>{filter.emoji}</span>{filter.label}
+                <button key={item.id} type="button" onClick={() => runQuickSearch(item)} aria-pressed={active} style={{ flex: "0 0 auto", minHeight: 46, padding: "0 15px", border: active ? "2px solid #173f2d" : "1px solid #d3ddd6", borderRadius: 999, background: active ? "#173f2d" : "#fff", color: active ? "#fff" : "#304c3b", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: active ? "0 6px 16px rgba(23,63,45,.16)" : "none" }}>
+                  <span aria-hidden="true" style={{ marginRight: 7 }}>{item.emoji}</span>{item.label}
                 </button>
               );
             })}
+          </nav>
+
+          <section style={{ margin: "2px 0 16px", padding: 14, borderRadius: 16, background: "#eef7ef", border: "1px solid #cfe1d1" }}>
+            <strong style={{ color: "#204d32" }}>Strict carnivore-only catalogue</strong>
+            <small style={{ display: "block", marginTop: 5, color: "#5f7665" }}>Plant foods, nuts, seeds, plant oils, sauces, crumbed foods, sugary products, pet food, supplements and non-food products are excluded before results reach this page.</small>
+          </section>
+
+          <form onSubmit={search} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, padding: 14, border: "1px solid #dce5df", borderRadius: 18, background: "#f8fbf9" }}>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search steak, mince, bacon, salmon…" style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 13px", fontSize: 16, gridColumn: "span 2" }} />
+            <select value={location} onChange={(event) => setLocation(event.target.value)} style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 10px" }}>
+              <option value="Blenheim">Blenheim</option>
+              <option value="Marlborough">Marlborough</option>
+            </select>
+            <select value={category} onChange={(event) => setCategory(event.target.value)} style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 10px" }}>
+              <option value="all">All source categories</option>
+              {categories.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <button type="submit" style={{ minHeight: 46, border: 0, borderRadius: 12, background: "#173f2d", color: "white", fontWeight: 800, cursor: "pointer" }}>Search carnivore foods</button>
+          </form>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "16px 0 20px" }}>
+            <select value={chain} onChange={(event) => setChain(event.target.value)} style={{ minHeight: 40, border: "1px solid #d3ddd6", borderRadius: 10, padding: "0 10px" }}>
+              <option value="all">All supermarkets</option>
+              {chains.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)} style={{ minHeight: 40, border: "1px solid #d3ddd6", borderRadius: 10, padding: "0 10px" }}>
+              <option value="price-asc">Cheapest price</option>
+              <option value="unit-asc">Cheapest unit price</option>
+              <option value="price-desc">Highest price</option>
+              <option value="store">Supermarket</option>
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, color: "#44564a", fontWeight: 700 }}>
+              <input type="checkbox" checked={promoOnly} onChange={(event) => setPromoOnly(event.target.checked)} /> Specials only
+            </label>
+            <span style={{ marginLeft: "auto", color: "#68776e", fontWeight: 700 }}>{uniqueItemCount} carnivore items · {listings.length} store prices</span>
           </div>
-          <small style={{ display: "block", marginTop: 10, color: "#5f7665" }}>Strict animal-based filter: meat, seafood, eggs, cheese, butter, cream and ghee only. Plant foods, nuts, seeds, plant oils, sauces, crumbed foods and obvious high-carb products are excluded.</small>
-        </section>
+
+          {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>Finding carnivore foods and prices…</div>}
+          {error && <div style={{ padding: 18, borderRadius: 14, background: "#fff1ef", color: "#8a2922" }}>{error}</div>}
+          {!loading && !error && listings.length === 0 && (
+            <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>No strict carnivore-keto human-food matches were found. Try beef, steak, mince, bacon, eggs, cheese, salmon or butter.</div>
+          )}
+
+          <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
+            {listings.map((item) => <GroceryCard item={item} key={`${item.id}-${item.store}`} />)}
+          </section>
+        </>
       )}
-
-      <form onSubmit={search} style={{ display: "grid", gridTemplateColumns: "minmax(220px,2fr) repeat(3,minmax(150px,1fr))", gap: 10, padding: 14, border: "1px solid #dce5df", borderRadius: 18, background: "#f8fbf9" }}>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search milk, chicken, mince, cheese…" style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 13px", fontSize: 16 }} />
-        <select value={location} onChange={(event) => setLocation(event.target.value)} style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 10px" }}>
-          <option value="Blenheim">Blenheim</option>
-          <option value="Marlborough">Marlborough</option>
-        </select>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} style={{ minHeight: 46, border: "1px solid #cdd9d1", borderRadius: 12, padding: "0 10px" }}>
-          <option value="all">All categories</option>
-          {categories.map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
-        <button type="submit" style={{ minHeight: 46, border: 0, borderRadius: 12, background: "#173f2d", color: "white", fontWeight: 800, cursor: "pointer" }}>Search prices</button>
-      </form>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "16px 0 20px" }}>
-        <select value={chain} onChange={(event) => setChain(event.target.value)} style={{ minHeight: 40, border: "1px solid #d3ddd6", borderRadius: 10, padding: "0 10px" }}>
-          <option value="all">All supermarkets</option>
-          {chains.map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
-        <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)} style={{ minHeight: 40, border: "1px solid #d3ddd6", borderRadius: 10, padding: "0 10px" }}>
-          <option value="price-asc">Cheapest price</option>
-          <option value="unit-asc">Cheapest unit price</option>
-          <option value="price-desc">Highest price</option>
-          <option value="store">Supermarket</option>
-        </select>
-        <label style={{ display: "flex", alignItems: "center", gap: 7, color: "#44564a", fontWeight: 700 }}>
-          <input type="checkbox" checked={promoOnly} onChange={(event) => setPromoOnly(event.target.checked)} /> Specials only
-        </label>
-        <span style={{ marginLeft: "auto", color: "#68776e" }}>{listings.length} {ketoMode ? "carnivore " : ""}prices</span>
-      </div>
-
-      {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>{ketoMode ? "Finding carnivore keto foods and prices…" : "Loading supermarket prices…"}</div>}
-      {error && <div style={{ padding: 18, borderRadius: 14, background: "#fff1ef", color: "#8a2922" }}>{error}</div>}
-      {!loading && !error && listings.length === 0 && (
-        <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>{ketoMode ? "No carnivore-keto items were found for this filter." : "No matching prices found. Try another tab or search for a specific item such as mince, bacon, cheese or eggs."}</div>
-      )}
-
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
-        {listings.map((item) => <GroceryCard item={item} key={`${item.id}-${item.store}`} />)}
-      </section>
 
       <footer style={{ marginTop: 26, color: "#748078", fontSize: 13 }}>
-        Grocery data: Baskt latest observed supermarket snapshots. Prices can be regional, promotional, stale or unavailable; verify with the retailer before purchasing.
+        Grocery data: Baskt latest observed supermarket snapshots. Carnivore classification is conservative and based on catalogue text because full ingredient and nutrition panels are not available for every product. Verify processed products with the retailer label before purchasing.
       </footer>
     </main>
   );
