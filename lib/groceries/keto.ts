@@ -1,22 +1,32 @@
 import { fetchBasktGroceriesMany } from "./baskt";
 import type { GroceryListing } from "./types";
 
-export type KetoGroup = "all" | "meat" | "seafood" | "eggs" | "cheese" | "dairy" | "veg" | "nuts" | "fats";
+export type KetoGroup = "all" | "meat" | "seafood" | "eggs" | "cheese" | "dairy";
 
 const GROUP_TERMS: Record<Exclude<KetoGroup, "all">, string[]> = {
-  meat: ["beef", "steak", "mince", "chicken", "lamb", "pork", "bacon"],
-  seafood: ["salmon", "tuna", "sardine", "prawn", "fish"],
-  eggs: ["eggs"],
-  cheese: ["cheese", "cheddar", "mozzarella", "feta", "parmesan"],
-  dairy: ["cream", "butter"],
-  veg: ["avocado", "broccoli", "cauliflower", "spinach", "lettuce", "courgette", "zucchini", "mushroom", "cucumber", "cabbage", "asparagus"],
-  nuts: ["almond", "macadamia", "walnut", "pecan", "chia", "flax"],
-  fats: ["olive oil", "coconut oil", "avocado oil", "mayonnaise", "mayo"],
+  meat: [
+    "beef",
+    "steak",
+    "mince",
+    "chicken",
+    "lamb",
+    "pork",
+    "bacon",
+    "ham",
+    "brisket",
+    "ribs",
+    "liver",
+    "kidney",
+    "offal",
+  ],
+  seafood: ["salmon", "tuna", "sardine", "prawn", "shrimp", "fish", "mussel", "oyster"],
+  eggs: ["eggs", "egg"],
+  cheese: ["cheese", "cheddar", "mozzarella", "feta", "parmesan", "halloumi", "brie", "camembert"],
+  dairy: ["butter", "cream", "ghee", "sour cream"],
 };
 
 const ALL_TERMS = Array.from(new Set(Object.values(GROUP_TERMS).flat()));
 
-// Reject products that can match food search words but are not intended for people.
 const NON_HUMAN_FOOD_TERMS = [
   "dog food",
   "cat food",
@@ -46,7 +56,6 @@ const NON_HUMAN_FOOD_TERMS = [
   "raw pet",
 ];
 
-// Grocery catalogues can contain household, personal-care and health products.
 const NON_FOOD_CATEGORY_TERMS = [
   "pet",
   "pets",
@@ -79,6 +88,7 @@ const NON_FOOD_PRODUCT_TERMS = [
   "moisturiser",
   "moisturizer",
   "skin cream",
+  "body butter",
   "hair oil",
   "massage oil",
   "essential oil",
@@ -100,7 +110,9 @@ const NON_FOOD_PRODUCT_TERMS = [
   "protein powder",
 ];
 
-const EXCLUDED_KETO_TERMS = [
+// Anything here is incompatible with the strict carnivore-keto view or is too
+// ambiguous to classify safely without a full nutrition/ingredient panel.
+const CARNIVORE_EXCLUDED_TERMS = [
   "bread",
   "cracker",
   "crackers",
@@ -139,6 +151,106 @@ const EXCLUDED_KETO_TERMS = [
   "smoothie",
   "soft drink",
   "energy drink",
+  "chips",
+  "crisps",
+  "snack",
+  "wrap",
+  "sandwich",
+  "marinade",
+  "marinated",
+  "glaze",
+  "sauce",
+  "teriyaki",
+  "sweet chilli",
+  "bbq",
+  "barbecue",
+  "seasoning",
+  "flavour",
+  "flavor",
+  "stuffing",
+  "mayonnaise",
+  "mayo",
+  "peanut",
+  "almond",
+  "macadamia",
+  "walnut",
+  "pecan",
+  "cashew",
+  "chia",
+  "flax",
+  "seed",
+  "nuts",
+  "nut butter",
+  "olive",
+  "olive oil",
+  "coconut",
+  "coconut oil",
+  "avocado",
+  "avocado oil",
+  "vegetable oil",
+  "canola oil",
+  "sunflower oil",
+  "soy",
+  "tofu",
+  "tempeh",
+  "bean",
+  "lentil",
+  "chickpea",
+  "broccoli",
+  "cauliflower",
+  "spinach",
+  "lettuce",
+  "courgette",
+  "zucchini",
+  "mushroom",
+  "cucumber",
+  "cabbage",
+  "asparagus",
+  "vegetable",
+  "salad",
+  "fruit",
+  "berries",
+  "berry",
+  "plant based",
+  "plant-based",
+  "vegan",
+  "vegetarian",
+];
+
+const ANIMAL_FOOD_TERMS = [
+  "beef",
+  "steak",
+  "mince",
+  "chicken",
+  "lamb",
+  "pork",
+  "bacon",
+  "ham",
+  "brisket",
+  "ribs",
+  "liver",
+  "kidney",
+  "offal",
+  "salmon",
+  "tuna",
+  "sardine",
+  "prawn",
+  "shrimp",
+  "fish",
+  "mussel",
+  "oyster",
+  "egg",
+  "cheese",
+  "cheddar",
+  "mozzarella",
+  "feta",
+  "parmesan",
+  "halloumi",
+  "brie",
+  "camembert",
+  "butter",
+  "cream",
+  "ghee",
 ];
 
 function searchable(item: GroceryListing) {
@@ -160,11 +272,14 @@ function isHumanFood(item: GroceryListing) {
   return true;
 }
 
-function looksKeto(item: GroceryListing) {
+function looksCarnivoreKeto(item: GroceryListing) {
   if (!isHumanFood(item)) return false;
 
   const value = searchable(item);
-  return !EXCLUDED_KETO_TERMS.some((term) => value.includes(term));
+  if (!ANIMAL_FOOD_TERMS.some((term) => value.includes(term))) return false;
+  if (CARNIVORE_EXCLUDED_TERMS.some((term) => value.includes(term))) return false;
+
+  return true;
 }
 
 export async function fetchKetoGroceries(location: string, group: KetoGroup = "all") {
@@ -172,6 +287,6 @@ export async function fetchKetoGroceries(location: string, group: KetoGroup = "a
   const listings = await fetchBasktGroceriesMany(terms, location);
 
   return listings
-    .filter(looksKeto)
+    .filter(looksCarnivoreKeto)
     .sort((a, b) => a.price - b.price);
 }
