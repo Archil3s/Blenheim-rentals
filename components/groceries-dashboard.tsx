@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { GroceriesResponse, GroceryListing } from "@/lib/groceries/types";
 import type { KetoGroup } from "@/lib/groceries/keto";
 import { CARNIVORE_RECIPES, type CarnivoreRecipe } from "@/lib/groceries/carnivore-recipes";
+import { carnivoreValue } from "@/lib/groceries/nutrition";
 
 const money = new Intl.NumberFormat("en-NZ", {
   style: "currency",
@@ -12,7 +13,13 @@ const money = new Intl.NumberFormat("en-NZ", {
   maximumFractionDigits: 2,
 });
 
-type SortOption = "price-asc" | "price-desc" | "unit-asc" | "store";
+type SortOption =
+  | "price-asc"
+  | "price-desc"
+  | "kg-asc"
+  | "protein-desc"
+  | "protein-value"
+  | "store";
 type ViewMode = "prices" | "meal-prep";
 
 type QuickSearch = {
@@ -49,6 +56,8 @@ function freshness(value?: string | null) {
 }
 
 function GroceryCard({ item }: { item: GroceryListing }) {
+  const value = carnivoreValue(item);
+
   return (
     <article style={{ border: "1px solid #d9e2dc", borderRadius: 18, background: "white", padding: 18, boxShadow: "0 8px 24px rgba(20,61,42,.07)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
@@ -61,11 +70,28 @@ function GroceryCard({ item }: { item: GroceryListing }) {
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <strong style={{ display: "block", color: "#173f2d", fontSize: 24 }}>{money.format(item.price)}</strong>
-          {item.unitPrice != null && (
+          {value.pricePerKg != null ? (
+            <span style={{ color: "#65736b", fontSize: 13 }}>{money.format(value.pricePerKg)} / kg</span>
+          ) : item.unitPrice != null ? (
             <span style={{ color: "#65736b", fontSize: 13 }}>
               {money.format(item.unitPrice)}{item.unitLabel ? ` / ${item.unitLabel}` : " / unit"}
             </span>
-          )}
+          ) : null}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 14 }}>
+        <div style={{ padding: "9px 10px", borderRadius: 12, background: "#f5f8f6" }}>
+          <div style={{ fontSize: 11, color: "#718078", fontWeight: 800 }}>PRICE / KG</div>
+          <strong style={{ color: "#214936" }}>{value.pricePerKg != null ? money.format(value.pricePerKg) : "—"}</strong>
+        </div>
+        <div style={{ padding: "9px 10px", borderRadius: 12, background: "#f5f8f6" }}>
+          <div style={{ fontSize: 11, color: "#718078", fontWeight: 800 }}>PROTEIN</div>
+          <strong style={{ color: "#214936" }}>{value.proteinPer100g != null ? `~${value.proteinPer100g}g / 100g` : "—"}</strong>
+        </div>
+        <div style={{ padding: "9px 10px", borderRadius: 12, background: "#f5f8f6" }}>
+          <div style={{ fontSize: 11, color: "#718078", fontWeight: 800 }}>100G PROTEIN</div>
+          <strong style={{ color: "#214936" }}>{value.costPer100gProtein != null ? money.format(value.costPer100gProtein) : "—"}</strong>
         </div>
       </div>
 
@@ -129,7 +155,8 @@ export function GroceriesDashboard() {
   const [location, setLocation] = useState("Blenheim");
   const [category, setCategory] = useState("all");
   const [chain, setChain] = useState("all");
-  const [sort, setSort] = useState<SortOption>("price-asc");
+  const [sort, setSort] = useState<SortOption>("protein-value");
+  const [minProtein, setMinProtein] = useState(0);
   const [promoOnly, setPromoOnly] = useState(false);
   const [data, setData] = useState<GroceriesResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,16 +201,22 @@ export function GroceriesDashboard() {
       if (category !== "all" && item.category !== category) return false;
       if (chain !== "all" && item.chain !== chain) return false;
       if (promoOnly && !item.promo) return false;
+      const value = carnivoreValue(item);
+      if (minProtein > 0 && (value.proteinPer100g == null || value.proteinPer100g < minProtein)) return false;
       return true;
     });
 
     return [...result].sort((a, b) => {
+      const av = carnivoreValue(a);
+      const bv = carnivoreValue(b);
       if (sort === "price-desc") return b.price - a.price;
-      if (sort === "unit-asc") return (a.unitPrice ?? Number.POSITIVE_INFINITY) - (b.unitPrice ?? Number.POSITIVE_INFINITY);
+      if (sort === "kg-asc") return (av.pricePerKg ?? Number.POSITIVE_INFINITY) - (bv.pricePerKg ?? Number.POSITIVE_INFINITY);
+      if (sort === "protein-desc") return (bv.proteinPer100g ?? -1) - (av.proteinPer100g ?? -1);
+      if (sort === "protein-value") return (av.costPer100gProtein ?? Number.POSITIVE_INFINITY) - (bv.costPer100gProtein ?? Number.POSITIVE_INFINITY);
       if (sort === "store") return `${a.chain} ${a.store}`.localeCompare(`${b.chain} ${b.store}`);
       return a.price - b.price;
     });
-  }, [data, category, chain, promoOnly, sort]);
+  }, [data, category, chain, promoOnly, minProtein, sort]);
 
   const uniqueItemCount = useMemo(() => {
     return new Set(listings.map((item) => [item.name, item.brand ?? "", item.size ?? ""].join("|"))).size;
@@ -224,7 +257,7 @@ export function GroceriesDashboard() {
       <header style={{ marginBottom: 16 }}>
         <p style={{ margin: 0, color: "#4e6f5b", fontWeight: 800 }}>BLENHEIM CARNIVORE PRICE FINDER</p>
         <h1 style={{ margin: "5px 0 6px", color: "#143d2a", fontSize: "clamp(2rem,5vw,3.6rem)" }}>Carnivore Keto</h1>
-        <p style={{ margin: 0, color: "#66756c", maxWidth: 780 }}>Only animal-based keto/carnivore human foods are shown: meat, seafood, eggs, cheese, butter, cream and ghee. Every search is filtered through the same strict classifier.</p>
+        <p style={{ margin: 0, color: "#66756c", maxWidth: 780 }}>Only animal-based keto/carnivore human foods are shown. Compare sticker price, price per kg and estimated protein value.</p>
       </header>
 
       <div style={{ display: "inline-flex", gap: 6, padding: 5, borderRadius: 14, background: "#edf3ef", marginBottom: 16 }}>
@@ -236,7 +269,7 @@ export function GroceriesDashboard() {
         <>
           <section style={{ padding: 16, border: "1px solid #e3d8ca", borderRadius: 16, background: "#fffaf4", marginBottom: 16 }}>
             <h2 style={{ margin: "0 0 6px", color: "#4b3322" }}>Carnivore meal-prep ideas</h2>
-            <p style={{ margin: 0, color: "#735f4f", lineHeight: 1.5 }}>These are simplified original recipes built from recurring carnivore/keto meal-prep patterns found across Reddit and YouTube: beef-and-egg batches, casseroles, freezer meatballs, bulk patties, slow-cooked roast and bacon-wrapped beef rolls.</p>
+            <p style={{ margin: 0, color: "#735f4f", lineHeight: 1.5 }}>Simplified meal-prep recipes built around recurring carnivore/keto community patterns.</p>
           </section>
           <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(310px,1fr))", gap: 14 }}>
             {CARNIVORE_RECIPES.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} onShop={shopRecipe} />)}
@@ -256,8 +289,8 @@ export function GroceriesDashboard() {
           </nav>
 
           <section style={{ margin: "2px 0 16px", padding: 14, borderRadius: 16, background: "#eef7ef", border: "1px solid #cfe1d1" }}>
-            <strong style={{ color: "#204d32" }}>Strict carnivore-only catalogue</strong>
-            <small style={{ display: "block", marginTop: 5, color: "#5f7665" }}>Plant foods, nuts, seeds, plant oils, sauces, crumbed foods, sugary products, pet food, supplements and non-food products are excluded before results reach this page.</small>
+            <strong style={{ color: "#204d32" }}>Best value = lowest cost for protein</strong>
+            <small style={{ display: "block", marginTop: 5, color: "#5f7665" }}>Protein is an estimate by food type, not a product nutrition-label value. Price/kg uses Baskt unit pricing where possible, otherwise pack weight.</small>
           </section>
 
           <form onSubmit={search} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, padding: 14, border: "1px solid #dce5df", borderRadius: 18, background: "#f8fbf9" }}>
@@ -279,10 +312,19 @@ export function GroceriesDashboard() {
               {chains.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
             <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)} style={{ minHeight: 40, border: "1px solid #d3ddd6", borderRadius: 10, padding: "0 10px" }}>
-              <option value="price-asc">Cheapest price</option>
-              <option value="unit-asc">Cheapest unit price</option>
-              <option value="price-desc">Highest price</option>
+              <option value="protein-value">Best protein value</option>
+              <option value="kg-asc">Cheapest per kg</option>
+              <option value="protein-desc">Highest protein / 100g</option>
+              <option value="price-asc">Cheapest sticker price</option>
+              <option value="price-desc">Highest sticker price</option>
               <option value="store">Supermarket</option>
+            </select>
+            <select value={minProtein} onChange={(event) => setMinProtein(Number(event.target.value))} style={{ minHeight: 40, border: "1px solid #d3ddd6", borderRadius: 10, padding: "0 10px" }}>
+              <option value={0}>Any protein level</option>
+              <option value={15}>15g+ protein / 100g</option>
+              <option value={20}>20g+ protein / 100g</option>
+              <option value={25}>25g+ protein / 100g</option>
+              <option value={30}>30g+ protein / 100g</option>
             </select>
             <label style={{ display: "flex", alignItems: "center", gap: 7, color: "#44564a", fontWeight: 700 }}>
               <input type="checkbox" checked={promoOnly} onChange={(event) => setPromoOnly(event.target.checked)} /> Specials only
@@ -293,7 +335,7 @@ export function GroceriesDashboard() {
           {loading && <div style={{ padding: 28, textAlign: "center", color: "#627067" }}>Finding carnivore foods and prices…</div>}
           {error && <div style={{ padding: 18, borderRadius: 14, background: "#fff1ef", color: "#8a2922" }}>{error}</div>}
           {!loading && !error && listings.length === 0 && (
-            <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>No strict carnivore-keto human-food matches were found. Try beef, steak, mince, bacon, eggs, cheese, salmon or butter.</div>
+            <div style={{ padding: 28, borderRadius: 14, background: "#f5f8f6", color: "#5c6d62", textAlign: "center" }}>No matches at this protein/filter level. Try lowering the protein minimum or choosing another carnivore category.</div>
           )}
 
           <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
@@ -303,7 +345,7 @@ export function GroceriesDashboard() {
       )}
 
       <footer style={{ marginTop: 26, color: "#748078", fontSize: 13 }}>
-        Grocery data: Baskt latest observed supermarket snapshots. Carnivore classification is conservative and based on catalogue text because full ingredient and nutrition panels are not available for every product. Verify processed products with the retailer label before purchasing.
+        Grocery data: Baskt latest observed supermarket snapshots. Protein values are approximate food-type estimates, not retailer nutrition panels. Verify processed products and exact nutrition on the pack before purchasing.
       </footer>
     </main>
   );
