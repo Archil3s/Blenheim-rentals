@@ -11,9 +11,6 @@ const KETO_GROUPS = new Set<KetoGroup>([
   "eggs",
   "cheese",
   "dairy",
-  "veg",
-  "nuts",
-  "fats",
 ]);
 
 export async function GET(request: Request) {
