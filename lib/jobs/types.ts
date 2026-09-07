@@ -6,6 +6,7 @@ export type SavedJob = {
   employer: string;
   location: string;
   salary: string;
+  hourlyRate?: number;
   source: JobSource;
   url: string;
   savedAt: string;
