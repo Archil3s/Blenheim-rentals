@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { GroceriesDashboard } from "@/components/groceries-dashboard";
 import { JobsDashboard } from "@/components/jobs-dashboard";
+import { LiveJobsDashboard } from "@/components/live-jobs-dashboard";
 import {
   NewRentalsDashboard,
   RentalDiscoveryTracker,
@@ -85,7 +86,12 @@ export function AppDashboard() {
 
       {tab === "rentals" && <RentalsDashboard />}
       {tab === "new-rentals" && <NewRentalsDashboard onOpenRentals={() => setTab("rentals")} />}
-      {tab === "jobs" && <JobsDashboard />}
+      {tab === "jobs" && (
+        <>
+          <LiveJobsDashboard />
+          <JobsDashboard />
+        </>
+      )}
       {tab === "groceries" && <GroceriesDashboard />}
     </>
   );
