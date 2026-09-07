@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { GroceriesDashboard } from "@/components/groceries-dashboard";
+import { JobsDashboard } from "@/components/jobs-dashboard";
 import {
   NewRentalsDashboard,
   RentalDiscoveryTracker,
 } from "@/components/new-rentals-dashboard";
 import { RentalsDashboard } from "@/components/rentals-dashboard";
 
-type Tab = "rentals" | "new-rentals" | "groceries";
+type Tab = "rentals" | "new-rentals" | "jobs" | "groceries";
 
 export function AppDashboard() {
   const [tab, setTab] = useState<Tab>("rentals");
@@ -65,6 +66,15 @@ export function AppDashboard() {
 
         <button
           type="button"
+          onClick={() => setTab("jobs")}
+          aria-pressed={tab === "jobs"}
+          style={tabStyle(tab === "jobs")}
+        >
+          💼 Jobs
+        </button>
+
+        <button
+          type="button"
           onClick={() => setTab("groceries")}
           aria-pressed={tab === "groceries"}
           style={tabStyle(tab === "groceries")}
@@ -75,6 +85,7 @@ export function AppDashboard() {
 
       {tab === "rentals" && <RentalsDashboard />}
       {tab === "new-rentals" && <NewRentalsDashboard onOpenRentals={() => setTab("rentals")} />}
+      {tab === "jobs" && <JobsDashboard />}
       {tab === "groceries" && <GroceriesDashboard />}
     </>
   );
