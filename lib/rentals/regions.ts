@@ -1,4 +1,4 @@
-export const RENTAL_REGIONS = [
+const RENTAL_REGION_DEFINITIONS = [
   { name: "Marlborough", slug: "marlborough" },
   { name: "Nelson", slug: "nelson" },
   { name: "Kaikōura", slug: "kaikoura" },
@@ -11,7 +11,12 @@ export const RENTAL_REGIONS = [
   { name: "Ashburton", slug: "ashburton" },
 ] as const;
 
-export type RentalRegionName = (typeof RENTAL_REGIONS)[number]["name"];
+export type RentalRegionName = (typeof RENTAL_REGION_DEFINITIONS)[number]["name"];
+
+// Export a widened read-only view so callers that compare discovered string
+// regions (for example CSV export code) can use Array.includes safely while
+// RentalRegionName above still retains the exact region-name union.
+export const RENTAL_REGIONS: readonly { name: string; slug: string }[] = RENTAL_REGION_DEFINITIONS;
 
 export function rentalRegionBySlug(slug: string) {
   return RENTAL_REGIONS.find((region) => region.slug === slug.toLowerCase());
