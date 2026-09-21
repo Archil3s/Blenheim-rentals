@@ -8,6 +8,7 @@ import {
   NewRentalsDashboard,
   RentalDiscoveryTracker,
 } from "@/components/new-rentals-dashboard";
+import { RegionalRentalDownloads } from "@/components/regional-rental-downloads";
 import { RentalsDashboard } from "@/components/rentals-dashboard";
 
 type Tab = "rentals" | "new-rentals" | "jobs" | "groceries";
@@ -84,7 +85,12 @@ export function AppDashboard() {
         </button>
       </nav>
 
-      {tab === "rentals" && <RentalsDashboard />}
+      {tab === "rentals" && (
+        <>
+          <RegionalRentalDownloads />
+          <RentalsDashboard />
+        </>
+      )}
       {tab === "new-rentals" && <NewRentalsDashboard onOpenRentals={() => setTab("rentals")} />}
       {tab === "jobs" && (
         <>
