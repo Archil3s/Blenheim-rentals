@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { RegionalRentalDownloads } from "@/components/regional-rental-downloads";
 import { RentalsDashboard } from "@/components/rentals-dashboard";
 import { RENTAL_REGIONS, rentalRegionBySlug } from "@/lib/rentals/regions";
 
@@ -66,6 +67,7 @@ export default async function RegionPage({ params }: RegionPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+      <RegionalRentalDownloads focusRegion={region.name} />
       <RentalsDashboard initialRegion={region.name} />
     </>
   );
