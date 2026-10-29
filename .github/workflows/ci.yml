@@ -21,5 +21,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Diagnose Tauranga rental providers
+        run: node scripts/diagnose-tauranga.mjs
+
       - name: Build
         run: npm run build
