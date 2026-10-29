@@ -4,6 +4,10 @@ A lightweight, stateless Blenheim rental viewer built with Next.js.
 
 The app is deliberately designed **without a database** and **without Playwright/browser automation**. A phone or desktop browser requests `/api/rentals`; the hosted Next.js server fetches enabled rental sources using ordinary HTTP, normalises and deduplicates the current results, returns JSON, and keeps only a short in-process RAM cache.
 
+## Flatting on Roomies
+
+A separate **Flatting / Roomies** tab links to location-specific Roomies searches for spare rooms and potential flatmates. Regional rental pages also have direct room links. Roomies [terms](https://www.roomies.co.nz/terms) forbid automated scraping, so no external listings or members are copied into the app, and whole-property totals and diary exports exclude Roomies. Arataki uses a labelled nearby Mount Maunganui search.
+
 ## Current status
 
 The application includes:

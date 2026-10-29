@@ -18,6 +18,10 @@ This file is the handoff/reference document for future ChatGPT/Codex sessions wo
 
 Rental Finder is a lightweight NZ regional rental aggregator with a strong Marlborough/Blenheim focus. Additional searchable regional pages cover Tauranga, Mount Maunganui, Arataki, Pāpāmoa Beach, and Ōtūmoetai. Ray White Tauranga and Ray White Mount Maunganui have independent HTTP rental adapters controlled by RAYWHITE_TAURANGA_ENABLED and RAYWHITE_MOUNT_ENABLED. The locality on a listing determines its exact regional bucket; the app does not infer Arataki from generic Mt Maunganui addresses.
 
+### Roomies and flatting
+
+The app now includes a separate **Flatting / Roomies** tab and region-page room links. Sources are curated outbound Roomies searches in `lib/rentals/roomies.ts`, displayed by `components/flatting-dashboard.tsx`. Roomies terms prohibit screen/database scraping, so DO NOT build a Roomies HTTP adapter, copy member profiles, or inflate the `/api/rentals` feed with flatting data. The Arataki option uses a clearly labelled nearby Mount Maunganui search. Roomies browsing does not affect whole-property counts or housing diary exports.
+
 The public product should stay simple:
 
 1. Open the site.

@@ -1,0 +1,27 @@
+.flatting-shell{max-width:1160px;margin:28px auto 64px;padding:0 24px}
+.flatting-hero{padding:clamp(28px,5vw,54px);border-radius:22px;background:radial-gradient(ellipse at 95% 20%,#3f8a65 0%,#235b40 48%,#143d2a 100%);color:#fff;overflow:hidden}
+.flatting-kicker{font-size:.73rem;letter-spacing:.13em;font-weight:800;color:#c4e5d0}
+.flatting-hero h1{font-size:clamp(2.2rem,5vw,3.9rem);line-height:1.05;letter-spacing:-.045em;max-width:740px;margin:16px 0}
+.flatting-hero p{color:#d7eadd;line-height:1.65;max-width:580px;font-size:1.05rem}
+.flatting-hero>a{display:inline-flex;align-items:center;gap:24px;margin-top:12px;padding:13px 18px;color:#174b32;background:#fff;border-radius:11px;font-weight:800;text-decoration:none}
+.flatting-controls{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:14px;margin:28px 0 18px}
+.flatting-modes{display:flex;gap:5px;padding:5px;border-radius:13px;background:#e7eee9}
+.flatting-modes button{border:0;border-radius:10px;padding:11px 16px;background:transparent;color:#305a41;font-weight:800;cursor:pointer}
+.flatting-modes button.active{background:#fff;box-shadow:0 4px 12px #1a462018}
+.flatting-search{display:grid;gap:6px;color:#486452;font-size:.8rem;font-weight:800}
+.flatting-search input{min-width:260px;padding:12px;border:1px solid #cddfd2;border-radius:11px;background:#fff}
+.flatting-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr));gap:16px}
+.flatting-card{display:flex;flex-direction:column;align-items:stretch;min-height:198px;padding:22px;background:#fff;border:1px solid #dfebe2;border-radius:17px;box-shadow:0 7px 26px #173f2c0a}
+.flatting-source{font-size:.68rem;letter-spacing:.12em;color:#56916c;font-weight:800}
+.flatting-card h2{color:#17402c;letter-spacing:-.03em;font-size:1.3rem;margin:13px 0 6px}
+.flatting-card p{color:#607566;line-height:1.5;font-size:.89rem;margin:0 0 auto}
+.flatting-card>a{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#1d6844;font-weight:800;text-decoration:none;border-top:1px solid #edf2ef;padding-top:16px;margin-top:18px}
+.flatting-card small{color:#748378;line-height:1.4;margin-top:10px}
+.flatting-fineprint{margin-top:22px;font-size:.87rem;line-height:1.6;color:#687b6d}
+.flatting-region-banner{max-width:1120px;margin:20px auto;padding:20px 24px;display:flex;align-items:center;gap:16px;border:1px solid #bfd8c7;border-radius:16px;background:linear-gradient(120deg,#e6f2e9,#f8fcf9)}
+.flatting-region-content{flex:1}
+.flatting-region-banner .flatting-kicker{color:#5a8068}
+.flatting-region-banner h2{color:#183d2b;font-size:1.18rem;margin:5px 0}
+.flatting-region-banner p{font-size:.88rem;line-height:1.4;color:#597364;margin:0}
+.flatting-region-banner>a{flex:0 0 auto;background:#1e593c;color:#fff;font-weight:800;padding:12px 16px;border-radius:11px;text-decoration:none}
+@media(max-width:720px){.flatting-shell{padding:0 14px;margin:14px auto}.flatting-controls{align-items:stretch}.flatting-modes,.flatting-search,.flatting-search input{width:100%}.flatting-modes button{flex:1}.flatting-region-banner{margin:14px;flex-direction:column;align-items:stretch;padding:18px}.flatting-region-banner>a{text-align:center}}

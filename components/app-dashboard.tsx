@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GroceriesDashboard } from "@/components/groceries-dashboard";
+import { FlattingDashboard } from "@/components/flatting-dashboard";
 import { JobsDashboard } from "@/components/jobs-dashboard";
 import { LiveJobsDashboard } from "@/components/live-jobs-dashboard";
 import {
@@ -11,7 +12,7 @@ import {
 import { RegionalRentalDownloads } from "@/components/regional-rental-downloads";
 import { RentalsDashboard } from "@/components/rentals-dashboard";
 
-type Tab = "rentals" | "new-rentals" | "jobs" | "groceries";
+type Tab = "rentals" | "flatting" | "new-rentals" | "jobs" | "groceries";
 
 export function AppDashboard() {
   const [tab, setTab] = useState<Tab>("rentals");
@@ -59,6 +60,15 @@ export function AppDashboard() {
 
         <button
           type="button"
+          onClick={() => setTab("flatting")}
+          aria-pressed={tab === "flatting"}
+          style={tabStyle(tab === "flatting")}
+        >
+          Flatting / Roomies
+        </button>
+
+        <button
+          type="button"
           onClick={() => setTab("new-rentals")}
           aria-pressed={tab === "new-rentals"}
           style={tabStyle(tab === "new-rentals")}
@@ -91,6 +101,7 @@ export function AppDashboard() {
           <RentalsDashboard />
         </>
       )}
+      {tab === "flatting" && <FlattingDashboard />}
       {tab === "new-rentals" && <NewRentalsDashboard onOpenRentals={() => setTab("rentals")} />}
       {tab === "jobs" && (
         <>

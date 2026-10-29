@@ -7,6 +7,7 @@ import "./rental-enhancements.css";
 import "./regions.css";
 import "./install-prompt.css";
 import "./growth.css";
+import "./flatting.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://blenheim-rentals.daniel-dutoit.workers.dev";
 const siteDescription =

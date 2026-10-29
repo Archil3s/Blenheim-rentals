@@ -24,5 +24,8 @@ jobs:
       - name: Diagnose Tauranga rental providers
         run: node scripts/diagnose-tauranga.mjs
 
+      - name: Verify Roomies location links
+        run: node scripts/check-roomies.mjs
+
       - name: Build
         run: npm run build

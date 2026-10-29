@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RegionalRentalDownloads } from "@/components/regional-rental-downloads";
 import { RentalsDashboard } from "@/components/rentals-dashboard";
+import { RoomiesRegionBanner } from "@/components/flatting-dashboard";
 import { RENTAL_REGIONS, rentalRegionBySlug } from "@/lib/rentals/regions";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://blenheim-rentals.daniel-dutoit.workers.dev";
@@ -67,6 +68,7 @@ export default async function RegionPage({ params }: RegionPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+      <RoomiesRegionBanner regionSlug={region.slug} />
       <RegionalRentalDownloads focusRegion={region.name} />
       <RentalsDashboard initialRegion={region.name} />
     </>
