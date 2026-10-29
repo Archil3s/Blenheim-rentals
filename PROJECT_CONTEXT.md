@@ -16,7 +16,7 @@ This file is the handoff/reference document for future ChatGPT/Codex sessions wo
 
 ## 1. Product goal
 
-Rental Finder is a lightweight NZ regional rental aggregator with a strong Marlborough/Blenheim focus.
+Rental Finder is a lightweight NZ regional rental aggregator with a strong Marlborough/Blenheim focus. Additional searchable regional pages cover Tauranga, Mount Maunganui, Arataki, Pāpāmoa Beach, and Ōtūmoetai. Ray White Tauranga and Ray White Mount Maunganui have independent HTTP rental adapters controlled by RAYWHITE_TAURANGA_ENABLED and RAYWHITE_MOUNT_ENABLED. The locality on a listing determines its exact regional bucket; the app does not infer Arataki from generic Mt Maunganui addresses.
 
 The public product should stay simple:
 

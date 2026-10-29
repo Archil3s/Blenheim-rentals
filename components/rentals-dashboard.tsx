@@ -407,6 +407,13 @@ export function RentalsDashboard({ initialRegion }: RentalsDashboardProps) {
       "Timaru Central",
       "Queenstown",
       "Ashburton",
+      "Tauranga",
+      "Mount Maunganui",
+      "Mt Maunganui",
+      "Arataki",
+      "Papamoa",
+      "Papamoa Beach",
+      "Otumoetai",
     ].forEach((area) => suburbs.add(area));
     return [...suburbs].sort((a, b) => a.localeCompare(b));
   }, [data]);

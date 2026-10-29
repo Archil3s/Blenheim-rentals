@@ -51,6 +51,19 @@ The phone does not run a scraper, Chromium, Playwright, Node.js or a local helpe
 
 No rental listings are written to SQLite, Postgres, local files, browser storage, or another persistent database.
 
+## Tauranga-area search coverage
+
+The Locations filter and regional pages include **Tauranga, Mount Maunganui (the Mount), Arataki, Pāpāmoa Beach and Ōtūmoetai**, while retaining all existing regions. Both Ray White Tauranga and Ray White Mount Maunganui are enabled as public HTTP rental sources. Incoming listings are assigned to those regions based on the locality in each advertised address (including “Mt Maunganui”, “Papamoa” and unaccented “Otumoetai”). Other recognised Tauranga-city suburbs appear under Tauranga.
+
+A location can legitimately show **0 current listings** when a connected source has no rental in that area. The app does not invent listings or infer a street address in Arataki when a provider only advertises it as Mt Maunganui.
+
+Disable the Tauranga-area sources independently if necessary:
+
+```env
+RAYWHITE_TAURANGA_ENABLED=false
+RAYWHITE_MOUNT_ENABLED=false
+```
+
 ## Live sources
 
 ### Ray White Blenheim

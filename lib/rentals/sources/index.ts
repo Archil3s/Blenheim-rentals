@@ -13,11 +13,14 @@ import {
 import { quinovicSource } from "./quinovic";
 import { rayWhiteCompleteSource } from "./raywhite-complete";
 import { rayWhiteSource } from "./raywhite";
+import { rayWhiteMountMaunganuiSource, rayWhiteTaurangaSource } from "./raywhite-tauranga";
 import { summitSource } from "./summit";
 
 export const rentalSources = [
   oneRoofSource,
   rayWhiteSource,
+  rayWhiteTaurangaSource,
+  rayWhiteMountMaunganuiSource,
   rayWhiteCompleteSource,
   bnPropertiesSource,
   quinovicSource,

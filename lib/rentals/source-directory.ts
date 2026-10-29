@@ -19,6 +19,18 @@ export const rentalSourceDirectory: RentalSourceDirectoryEntry[] = [
     note: "Live public HTTP feed",
   },
   {
+    name: "Ray White Tauranga",
+    url: "https://rwtauranga.co.nz/properties/residential-for-rent?category=&suburbPostCode=",
+    access: "live",
+    note: "Public residential rental feed; includes Tauranga and requested nearby suburbs",
+  },
+  {
+    name: "Ray White Mount Maunganui",
+    url: "https://rwmountmaunganui.co.nz/properties/residential-for-rent?category=&suburbPostCode=",
+    access: "live",
+    note: "Public residential rental feed; includes the Mount and Pāpāmoa",
+  },
+  {
     name: "Ray White Complete PM",
     url: "https://completerentals.co.nz/properties/residential-for-rent?category=&suburbPostCode=",
     access: "live",

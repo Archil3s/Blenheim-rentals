@@ -9,6 +9,11 @@ const RENTAL_REGION_DEFINITIONS = [
   { name: "Timaru", slug: "timaru" },
   { name: "Queenstown-Lakes", slug: "queenstown-lakes" },
   { name: "Ashburton", slug: "ashburton" },
+  { name: "Tauranga", slug: "tauranga" },
+  { name: "Mount Maunganui", slug: "mount-maunganui" },
+  { name: "Arataki", slug: "arataki" },
+  { name: "Pāpāmoa Beach", slug: "papamoa-beach" },
+  { name: "Ōtūmoetai", slug: "otumoetai" },
 ] as const;
 
 export type RentalRegionName = (typeof RENTAL_REGION_DEFINITIONS)[number]["name"];
