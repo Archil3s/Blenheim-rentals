@@ -81,6 +81,21 @@ export function parseTaurangaRayWhiteHtml(html: string, office: Office): Rental[
   const seen = new Set<string>();
   const links = /<a\b[^>]*href\s*=\s*(["'])([^"']*\/properties\/residential-for-rent\/[^"']+\/\d+)\1[^>]*>([\s\S]*?)<\/a>/gi;
 
+  // Ray White renders TWO links per property: an "Available ..." badge
+  // followed by the address. Critically the weekly rent is often AFTER
+  // the address anchor. Parsing one anchor in isolation loses the rent.
+  // Group links by property ID, then read the whole card up to the next
+  // property's first link so prices cannot bleed into adjacent homes.
+  type PropertyGroup = {
+    url: URL;
+    id: string;
+    sourceListingId: string;
+    start: number;
+    anchors: string[];
+  };
+  const groups: PropertyGroup[] = [];
+  const byId = new Map<string, PropertyGroup>();
+
   for (const match of html.matchAll(links)) {
     let url: URL;
     try {
@@ -90,45 +105,53 @@ export function parseTaurangaRayWhiteHtml(html: string, office: Office): Rental[
     }
     if (url.origin !== office.origin) continue;
 
-    const address = htmlText(match[3]);
+    const sourceListingId = url.pathname.split("/").filter(Boolean).at(-1) ?? "";
+    if (!/^\d+$/.test(sourceListingId)) continue;
+    const id = office.key + ":" + sourceListingId;
+    let group = byId.get(id);
+    if (!group) {
+      group = { url, id, sourceListingId, start: match.index ?? 0, anchors: [] };
+      byId.set(id, group);
+      groups.push(group);
+    }
+    group.anchors.push(htmlText(match[3]));
+  }
+
+  for (let i = 0; i < groups.length; i++) {
+    const property = groups[i];
+    const address = property.anchors.find((value) =>
+      /^\d/.test(value) && value.length < 160 && Boolean(classifyTaurangaAddress(value)),
+    );
+    if (!address) continue;
     const location = classifyTaurangaAddress(address);
     if (!location) continue;
 
-    const index = match.index ?? 0;
-    const contextHtml = html.slice(
-      Math.max(0, index - 1400),
-      Math.min(html.length, index + match[0].length + 1400),
-    );
-    const context = htmlText(contextHtml);
-    const addressIndex = context.toLowerCase().indexOf(address.toLowerCase());
-    const before = addressIndex >= 0 ? context.slice(0, addressIndex) : context;
-    const after = addressIndex >= 0 ? context.slice(addressIndex + address.length) : context;
-    const amounts = [...before.matchAll(/\$\s?([\d,]+)\s*per\s*week/gi)];
-    const rent = Number(amounts.at(-1)?.[1]?.replace(/,/g, "") ?? 0);
+    const next = groups[i + 1]?.start ?? html.length;
+    const cardHtml = html.slice(property.start, next);
+    const card = htmlText(cardHtml);
+    const rentMatch = card.match(/\$\s?([\d,]+)\s*per\s*week/i);
+    const rent = Number(rentMatch?.[1]?.replace(/,/g, "") ?? 0);
     if (!Number.isFinite(rent) || rent <= 0) continue;
+    if (seen.has(property.id)) continue;
+    seen.add(property.id);
 
-    const sourceListingId = url.pathname.split("/").filter(Boolean).at(-1) ?? "";
-    const id = office.key + ":" + sourceListingId;
-    if (!sourceListingId || seen.has(id)) continue;
-    seen.add(id);
-
-    const available = before.match(/\bAvailable\s+(Now|Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|\d{1,2}\s+[A-Za-z]+)\b/i)?.[0];
-    const images = extractListingImages(contextHtml, url.toString(), 6);
+    const available = card.match(/\bAvailable\s+(Now|Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|\d{1,2}\s+[A-Za-z]+)\b/i)?.[0];
+    const images = extractListingImages(cardHtml, property.url.toString(), 6);
 
     rentals.push({
-      id,
+      id: property.id,
       address,
       suburb: location.suburb,
       area: "Tauranga",
       region: location.region,
       rent,
-      bedrooms: count(after, "bed"),
-      bathrooms: count(after, "bath"),
+      bedrooms: count(card, "bed"),
+      bathrooms: count(card, "bath"),
       imageUrl: images[0],
       imageUrls: images.length ? images : undefined,
       source: office.name,
-      sourceListingId,
-      url: url.toString(),
+      sourceListingId: property.sourceListingId,
+      url: property.url.toString(),
       contactType: "Online",
       propertyType: "Private rental",
       propertyManager: office.name,
